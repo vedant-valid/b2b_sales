@@ -1,0 +1,11 @@
+{
+  "name": "outreach-app",
+  "private": true,
+  "workspaces": ["frontend", "backend"],
+  "scripts": {
+    "dev:backend": "npm --workspace backend run dev",
+    "dev:frontend": "npm --workspace frontend run dev",
+    "test:backend": "npm --workspace backend test",
+    "test:frontend": "npm --workspace frontend test"
+  }
+}
