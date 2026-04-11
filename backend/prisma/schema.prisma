@@ -1,0 +1,113 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  MANAGER
+  VIEWER
+}
+
+enum CampaignStatus {
+  DRAFT
+  RUNNING
+  PAUSED
+  COMPLETED
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  REPLIED
+  INTERESTED
+  NOT_INTERESTED
+  NEUTRAL
+  CONVERTIBLE
+  SKIPPED
+}
+
+enum EmailStatus {
+  DRAFT
+  SENT
+  FAILED
+}
+
+enum Sentiment {
+  INTERESTED
+  NOT_INTERESTED
+  NEUTRAL
+  CONVERTIBLE
+}
+
+model User {
+  id        String     @id @default(cuid())
+  email     String     @unique
+  name      String?
+  password  String
+  role      Role       @default(VIEWER)
+  campaigns Campaign[]
+  createdAt DateTime   @default(now())
+}
+
+model Campaign {
+  id                  String         @id @default(cuid())
+  name                String
+  rawGoal             String
+  extractedFilters    Json
+  status              CampaignStatus @default(DRAFT)
+  createdBy           User           @relation(fields: [createdById], references: [id])
+  createdById         String
+  leads               Lead[]
+  instantlyCampaignId String?
+  createdAt           DateTime       @default(now())
+}
+
+model Lead {
+  id            String     @id @default(cuid())
+  lushaPersonId String?    @unique
+  firstName     String
+  lastName      String
+  email         String?
+  title         String?
+  company       String?
+  location      String?
+  linkedinUrl   String?
+  department    String?
+  seniority     String?
+  status        LeadStatus @default(NEW)
+  campaign      Campaign   @relation(fields: [campaignId], references: [id])
+  campaignId    String
+  emails        Email[]
+  replies       Reply[]
+  createdAt     DateTime   @default(now())
+}
+
+model Email {
+  id        String      @id @default(cuid())
+  lead      Lead        @relation(fields: [leadId], references: [id])
+  leadId    String
+  subject   String
+  body      String
+  version   Int         @default(1)
+  status    EmailStatus @default(DRAFT)
+  sentAt    DateTime?
+  createdAt DateTime    @default(now())
+}
+
+model Reply {
+  id            String     @id @default(cuid())
+  lead          Lead       @relation(fields: [leadId], references: [id])
+  leadId        String
+  body          String
+  sentiment     Sentiment?
+  draftFollowUp String?
+  receivedAt    DateTime
+  createdAt     DateTime   @default(now())
+
+  @@unique([leadId, receivedAt])
+}
