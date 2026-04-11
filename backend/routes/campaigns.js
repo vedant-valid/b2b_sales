@@ -4,6 +4,7 @@ import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/auth.js";
 import { requireRole } from "../middleware/rbac.js";
 import { extractFilters as realExtractFilters } from "../services/prompt.js";
+import { getBoss } from "../lib/pgboss.js";
 
 let extract = realExtractFilters;
 export function __setExtractFilters(fn) { extract = fn; }
@@ -55,6 +56,29 @@ router.get("/:id", async (req, res, next) => {
     if (!campaign) return res.status(404).json({ error: "not_found" });
     res.json({ campaign });
   } catch (e) { next(e); }
+});
+
+router.post("/:id/run", requireRole("ADMIN", "MANAGER"), async (req, res, next) => {
+  try {
+    const campaign = await prisma.campaign.findUnique({ where: { id: req.params.id } });
+    if (!campaign) return res.status(404).json({ error: "not_found" });
+    if (campaign.status === "RUNNING") return res.status(409).json({ error: "already_running" });
+    const boss = await getBoss();
+    const jobId = await boss.send("fetch-leads", { campaignId: campaign.id });
+    res.json({ jobId });
+  } catch (e) { next(e); }
+});
+
+router.patch("/:id/pause", requireRole("ADMIN", "MANAGER"), async (req, res, next) => {
+  try {
+    const campaign = await prisma.campaign.update({
+      where: { id: req.params.id }, data: { status: "PAUSED" }
+    });
+    res.json({ campaign });
+  } catch (e) {
+    if (e.code === "P2025") return res.status(404).json({ error: "not_found" });
+    next(e);
+  }
 });
 
 export default router;
