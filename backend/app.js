@@ -10,6 +10,9 @@ import jobsRouter from "./routes/jobs.js";
 import campaignsRouter from "./routes/campaigns.js";
 import leadsRouter from "./routes/leads.js";
 import emailsRouter from "./routes/emails.js";
+import repliesRouter from "./routes/replies.js";
+import webhooksRouter from "./routes/webhooks.js";
+import exportRouter from "./routes/export.js";
 
 export function createApp() {
   const app = express();
@@ -25,6 +28,9 @@ export function createApp() {
   app.use("/api/campaigns", campaignsRouter);
   app.use("/api/leads", leadsRouter);
   app.use("/api", emailsRouter);    // Catches /leads/:id/emails and /emails/:id/...
+  app.use("/api/replies", repliesRouter);
+  app.use("/api/webhooks", webhooksRouter);
+  app.use("/api/export", exportRouter);
 
   app.use((_req, res) => res.status(404).json({ error: "not_found" }));
   app.use(errorHandler);
