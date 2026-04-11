@@ -1,0 +1,17 @@
+import "dotenv/config";
+import { z } from "zod";
+
+const schema = z.object({
+  NODE_ENV: z.string().default("development"),
+  PORT: z.string().default("4000"),
+  DATABASE_URL: z.string(),
+  JWT_SECRET: z.string().min(16),
+  GEMINI_API_KEY: z.string().optional(),
+  GEMINI_MODEL: z.string().default("gemini-2.5-flash"),
+  LUSHA_API_KEY: z.string().optional(),
+  INSTANTLY_API_KEY: z.string().optional(),
+  INSTANTLY_WEBHOOK_SECRET: z.string().optional(),
+  FRONTEND_URL: z.string().default("http://localhost:3000")
+});
+
+export const env = schema.parse(process.env);
