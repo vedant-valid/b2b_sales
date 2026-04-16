@@ -51,6 +51,7 @@ model User {
   password  String
   role      Role       @default(VIEWER)
   campaigns Campaign[]
+  brandDocs BrandDoc[]
   createdAt DateTime   @default(now())
 }
 
@@ -110,4 +111,14 @@ model Reply {
   createdAt     DateTime   @default(now())
 
   @@unique([leadId, receivedAt])
+}
+
+model BrandDoc {
+  id           String   @id @default("singleton")
+  content      String
+  fileName     String?
+  uploadedBy   User     @relation(fields: [uploadedById], references: [id])
+  uploadedById String
+  uploadedAt   DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
