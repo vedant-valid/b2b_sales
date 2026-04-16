@@ -26,7 +26,7 @@ export async function extractFilters(rawGoal, { generate = generateJson, brandDo
   const brandContext = brandDoc
     ? `\n\nBrand context (use this to fill gaps not covered by the goal):\n${brandDoc}`
     : "";
-  const prompt = `${SYSTEM_PROMPT}${brandContext}\n\nGoal:\n${rawGoal}\n\nJSON:`;
+  const prompt = `${SYSTEM_PROMPT}\n\nGoal:\n${rawGoal}${brandContext}\n\nJSON:`;
   const result = await generate(prompt);
   if ((result.confidence ?? 0) < 0.7) {
     return { ...result, needsClarification: true, clarification: result.clarification || "Please add more detail." };
