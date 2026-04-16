@@ -14,4 +14,17 @@ describe("emailGen", () => {
     expect(draft.body).toContain("Alice");
     expect(fake).toHaveBeenCalled();
   });
+
+  test("passes systemInstruction when brandDoc is provided", async () => {
+    let capturedOpts = null;
+    const fake = jest.fn().mockImplementation(async (prompt, opts) => {
+      capturedOpts = opts;
+      return { subject: "Test", body: "Hi" };
+    });
+    const lead = { firstName: "Alice", lastName: "Smith", title: "CTO", company: "Acme", department: "Eng" };
+    const profile = { senderName: "Bob", senderCompany: "NST", valueProp: "NST builds" };
+    await generateDraft(lead, profile, { generate: fake, brandDoc: "Never say talented." });
+    expect(capturedOpts).toHaveProperty("systemInstruction");
+    expect(capturedOpts.systemInstruction).toContain("Never say talented.");
+  });
 });

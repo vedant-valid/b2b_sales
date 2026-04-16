@@ -16,7 +16,8 @@ Rules:
 
 Return JSON: { "subject": string, "body": string }`;
 
-export async function generateDraft(lead, profile, { generate = generateJson } = {}) {
+export async function generateDraft(lead, profile, { generate = generateJson, brandDoc = null } = {}) {
+  const opts = brandDoc ? { systemInstruction: `BRAND GUIDELINES — follow these for every output:\n${brandDoc}` } : {};
   const prompt = `${SYSTEM}
 
 Lead:
@@ -31,5 +32,5 @@ Sender profile:
 - Value prop: ${profile.valueProp}
 
 JSON:`;
-  return generate(prompt);
+  return generate(prompt, opts);
 }
