@@ -51,7 +51,7 @@ describe("campaigns routes", () => {
   });
 
   test("passes brand doc content to extractFilters when set", async () => {
-    const { user, token } = await createUser({ email: `admin${Date.now()}@x.com`, role: "ADMIN" });
+    const { token } = await createUser({ email: `admin${Date.now()}@x.com`, role: "ADMIN" });
     await prisma.brandDoc.create({
       data: { id: "singleton", content: "ICP: Founders at seed-stage startups" }
     });
@@ -68,6 +68,20 @@ describe("campaigns routes", () => {
       .send({ name: "Test", rawGoal: "find engineers in India" });
 
     expect(capturedOpts).toHaveProperty("brandDoc", "ICP: Founders at seed-stage startups");
+  });
+
+  test("passes null brandDoc to extractFilters when no brand doc set", async () => {
+    const { token } = await createUser({ email: `noBd${Date.now()}@x.com`, role: "ADMIN" });
+    let capturedOpts = null;
+    __setExtractFilters(async (_goal, opts) => {
+      capturedOpts = opts;
+      return { filters: { locations: ["India"] }, confidence: 0.9, needsClarification: false };
+    });
+    await request(app)
+      .post("/api/campaigns")
+      .set(authHeader(token))
+      .send({ name: "NullTest", rawGoal: "find engineers in India" });
+    expect(capturedOpts).toHaveProperty("brandDoc", null);
   });
 
   test("GET /api/campaigns lists user-visible campaigns", async () => {

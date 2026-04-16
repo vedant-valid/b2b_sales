@@ -52,6 +52,23 @@ describe("generateEmail worker", () => {
     expect(capturedOpts).toHaveProperty("brandDoc", "NST brand content");
   });
 
+  test("passes null brandDoc to generateDraft when no brand doc exists", async () => {
+    const { user } = await createUser({ email: `noBd${Date.now()}@x.com` });
+    let capturedOpts = null;
+    __setGenerateDraft(jest.fn().mockImplementation(async (_lead, _profile, opts) => {
+      capturedOpts = opts;
+      return { subject: "S", body: "B" };
+    }));
+    const campaign = await prisma.campaign.create({
+      data: { name: "X", rawGoal: "g", extractedFilters: {}, createdById: user.id }
+    });
+    const lead = await prisma.lead.create({
+      data: { firstName: "A", lastName: "B", email: "a@b.com", campaignId: campaign.id }
+    });
+    await runGenerateEmailJob({ data: { leadId: lead.id } });
+    expect(capturedOpts).toHaveProperty("brandDoc", null);
+  });
+
   test("bumps version on regeneration", async () => {
     const { user } = await createUser({ email: `u2${Date.now()}${Math.random()}@x.com` });
     const campaign = await prisma.campaign.create({
