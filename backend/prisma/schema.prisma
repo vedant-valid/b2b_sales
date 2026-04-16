@@ -45,14 +45,14 @@ enum Sentiment {
 }
 
 model User {
-  id        String     @id @default(cuid())
-  email     String     @unique
-  name      String?
-  password  String
-  role      Role       @default(VIEWER)
-  campaigns Campaign[]
-  brandDocs BrandDoc[]
-  createdAt DateTime   @default(now())
+  id                String     @id @default(cuid())
+  email             String     @unique
+  name              String?
+  password          String
+  role              Role       @default(VIEWER)
+  campaigns         Campaign[]
+  uploadedBrandDocs BrandDoc[]
+  createdAt         DateTime   @default(now())
 }
 
 model Campaign {
@@ -114,11 +114,11 @@ model Reply {
 }
 
 model BrandDoc {
-  id           String   @id @default("singleton")
+  id           String    @id @default("singleton")
   content      String
   fileName     String?
-  uploadedBy   User     @relation(fields: [uploadedById], references: [id])
-  uploadedById String
-  uploadedAt   DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  uploadedBy   User?     @relation(fields: [uploadedById], references: [id])
+  uploadedById String?
+  uploadedAt   DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 }
