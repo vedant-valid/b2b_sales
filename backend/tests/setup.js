@@ -5,6 +5,7 @@ export async function resetDb() {
   await prisma.email.deleteMany();
   await prisma.lead.deleteMany();
   await prisma.campaign.deleteMany();
+  await prisma.brandDoc.deleteMany();
   await prisma.user.deleteMany();
 }
 
