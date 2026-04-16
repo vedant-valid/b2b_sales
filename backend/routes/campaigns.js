@@ -21,7 +21,8 @@ router.post("/", requireRole("ADMIN", "MANAGER"), async (req, res, next) => {
   try {
     const parsed = createSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: "invalid_input" });
-    const extraction = await extract(parsed.data.rawGoal);
+    const brandDoc = await prisma.brandDoc.findUnique({ where: { id: "singleton" } });
+    const extraction = await extract(parsed.data.rawGoal, { brandDoc: brandDoc?.content ?? null });
     if (extraction.needsClarification) {
       return res.status(422).json({ error: "needs_clarification", clarification: extraction.clarification });
     }

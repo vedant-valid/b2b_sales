@@ -50,6 +50,26 @@ describe("campaigns routes", () => {
     expect(res.body.clarification).toMatch(/target role/);
   });
 
+  test("passes brand doc content to extractFilters when set", async () => {
+    const { user, token } = await createUser({ email: `admin${Date.now()}@x.com`, role: "ADMIN" });
+    await prisma.brandDoc.create({
+      data: { id: "singleton", content: "ICP: Founders at seed-stage startups" }
+    });
+
+    let capturedOpts = null;
+    __setExtractFilters(async (_goal, opts) => {
+      capturedOpts = opts;
+      return { filters: { locations: ["India"] }, confidence: 0.9, needsClarification: false };
+    });
+
+    await request(app)
+      .post("/api/campaigns")
+      .set(authHeader(token))
+      .send({ name: "Test", rawGoal: "find engineers in India" });
+
+    expect(capturedOpts).toHaveProperty("brandDoc", "ICP: Founders at seed-stage startups");
+  });
+
   test("GET /api/campaigns lists user-visible campaigns", async () => {
     const { token, user } = await createUser({ role: "MANAGER", email: "m3@x.com" });
     await prisma.campaign.create({
