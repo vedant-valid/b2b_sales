@@ -1,4 +1,3 @@
-import { jest } from "@jest/globals";
 import request from "supertest";
 import { createApp } from "../../app.js";
 import { prisma } from "../../lib/prisma.js";
@@ -35,6 +34,12 @@ describe("GET /api/brand-doc", () => {
     const res = await request(app).get("/api/brand-doc");
     expect(res.status).toBe(401);
   });
+
+  test("VIEWER can read brand doc", async () => {
+    const { token } = await createUser({ email: `viewer${Date.now()}@x.com`, role: "VIEWER" });
+    const res = await request(app).get("/api/brand-doc").set(authHeader(token));
+    expect(res.status).toBe(200);
+  });
 });
 
 describe("POST /api/brand-doc", () => {
@@ -67,6 +72,11 @@ describe("POST /api/brand-doc", () => {
       .set(authHeader(token))
       .send({ content: "some content" });
     expect(res.status).toBe(403);
+  });
+
+  test("requires auth", async () => {
+    const res = await request(app).post("/api/brand-doc").send({ content: "some content" });
+    expect(res.status).toBe(401);
   });
 
   test("rejects empty content", async () => {
