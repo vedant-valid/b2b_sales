@@ -19,4 +19,15 @@ describe("replyHandler", () => {
     const out = await draftFollowUp("Yes, would love to chat", { firstName: "Alice" }, "INTERESTED", { generate: fake });
     expect(out).toMatch(/times/);
   });
+
+  test("includes brand doc in follow-up prompt when provided", async () => {
+    let capturedPrompt = null;
+    const fakeGen = jest.fn().mockImplementation(async (prompt) => {
+      capturedPrompt = prompt;
+      return { followUp: "Got it, talk soon." };
+    });
+    const lead = { firstName: "Alice" };
+    await draftFollowUp("Thanks!", lead, "INTERESTED", { generate: fakeGen, brandDoc: "Never use em-dashes." });
+    expect(capturedPrompt).toContain("Never use em-dashes.");
+  });
 });

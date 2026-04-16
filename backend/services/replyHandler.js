@@ -27,8 +27,9 @@ Sentiment context guides tone:
 
 Return JSON: { "followUp": string }`;
 
-export async function draftFollowUp(replyBody, lead, sentiment, { generate = generateJson } = {}) {
-  const prompt = `${FOLLOWUP_PROMPT}
+export async function draftFollowUp(replyBody, lead, sentiment, { generate = generateJson, brandDoc = null } = {}) {
+  const brandContext = brandDoc ? `\n\nBrand voice guidelines:\n${brandDoc}` : "";
+  const prompt = `${FOLLOWUP_PROMPT}${brandContext}
 
 Reply from ${lead.firstName}:
 ${replyBody}
