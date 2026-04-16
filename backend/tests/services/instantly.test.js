@@ -18,18 +18,29 @@ function makeFetch(responses) {
 }
 
 describe("instantly service", () => {
-  test("createCampaign returns id", async () => {
-    const fetch = makeFetch([{ status: 200, body: { id: "cmp_123", name: "X" } }]);
+  test("createCampaign returns instantlyCampaignId", async () => {
+    const fetch = makeFetch([
+      { status: 200, body: { id: "cmp_123", name: "X" } }
+    ]);
     const out = await createCampaign("X", { fetch });
     expect(out.instantlyCampaignId).toBe("cmp_123");
-    expect(fetch.calls[0].url).toMatch(/campaigns/);
+    expect(fetch.calls).toHaveLength(1);
+    expect(fetch.calls[0].url).toMatch(/\/campaigns$/);
+    const body = JSON.parse(fetch.calls[0].init.body);
+    expect(body.name).toBe("X");
   });
 
-  test("pushLeads reports accepted and rejected", async () => {
-    const fetch = makeFetch([{
-      status: 200,
-      body: { accepted: 2, rejected: [{ email: "bad@x.com", reason: "invalid" }] }
-    }]);
+  test("throws on non-2xx from campaign creation", async () => {
+    const fetch = makeFetch([{ status: 400, body: { error: "bad" } }]);
+    await expect(createCampaign("X", { fetch })).rejects.toThrow(/instantly/);
+  });
+
+  test("pushLeads reports accepted and rejected per-lead", async () => {
+    const fetch = makeFetch([
+      { status: 200, body: {} },
+      { status: 200, body: {} },
+      { status: 400, body: { error: "invalid" } }
+    ]);
     const out = await pushLeads("cmp_123", [
       { email: "a@x.com", firstName: "A", lastName: "B", company: "Acme", subject: "S", body: "B" },
       { email: "c@x.com", firstName: "C", lastName: "D", company: "Delta", subject: "S", body: "B" },
@@ -37,6 +48,7 @@ describe("instantly service", () => {
     ], { fetch });
     expect(out.accepted).toBe(2);
     expect(out.rejected).toHaveLength(1);
+    expect(out.rejected[0].email).toBe("bad@x.com");
   });
 
   test("sendSubsequence calls subsequence endpoint", async () => {
@@ -45,7 +57,7 @@ describe("instantly service", () => {
     expect(fetch.calls[0].url).toMatch(/subsequences/);
   });
 
-  test("throws on non-2xx", async () => {
+  test("throws on non-2xx from campaign creation", async () => {
     const fetch = makeFetch([{ status: 500, body: { error: "server" } }]);
     await expect(createCampaign("X", { fetch })).rejects.toThrow(/instantly/);
   });

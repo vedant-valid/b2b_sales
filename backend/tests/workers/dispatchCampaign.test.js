@@ -8,7 +8,8 @@ beforeEach(async () => {
   await resetDb();
   __setInstantlyImpl({
     createCampaign: jest.fn().mockResolvedValue({ instantlyCampaignId: "cmp_abc" }),
-    pushLeads: jest.fn().mockResolvedValue({ accepted: 2, rejected: [] })
+    pushLeads: jest.fn().mockResolvedValue({ accepted: 2, rejected: [] }),
+    activateCampaign: jest.fn().mockResolvedValue({})
   });
 });
 
@@ -56,7 +57,8 @@ describe("dispatchCampaign worker", () => {
       pushLeads: jest.fn().mockResolvedValue({
         accepted: 1,
         rejected: [{ email: "bad@x.com", reason: "invalid" }]
-      })
+      }),
+      activateCampaign: jest.fn().mockResolvedValue({})
     });
     const { user } = await createUser({ email: `u2${Date.now()}${Math.random()}@x.com` });
     const campaign = await prisma.campaign.create({
