@@ -5,22 +5,28 @@ const SYSTEM_PROMPT = `You are a B2B prospecting assistant. Convert a natural-la
 Return JSON only, with this shape:
 {
   "filters": {
-    "titles": [string],
     "seniorities": [string],
     "departments": [string],
     "locations": [string],
-    "industries": [string],
-    "companySizes": [string],
-    "companyStages": [string]
+    "companySizes": [string]
   },
   "confidence": number (0..1),
   "clarification": string (only if confidence < 0.7)
 }
 
-Use only fields that are clearly expressed in the goal. Omit unknown fields (do not invent values).`;
+RULES:
+- "seniorities": use only exact Lusha values → "founder", "partner", "c-suite", "vice president", "director", "manager", "senior", "entry", "intern", "other"
+- "departments": use only exact Lusha values → "Business Development", "Consulting", "Customer Service", "Engineering & Technical", "Finance", "General Management", "Health Care & Medical", "Human Resources", "Information Technology", "Legal", "Marketing", "Operations", "Other", "Product", "Research & Analytics", "Sales"
+- "locations": country names only (e.g. "India", "United States")
+- "companySizes": use range strings → "1-10", "11-50", "51-200", "201-500", "501-1000", "1001-5000", "5001-10000", "10001+" OR natural language → "startup", "small", "medium", "large", "enterprise", "unicorn"
+- Omit any field you cannot confidently infer from the goal
+- Do NOT invent values outside the allowed lists`;
 
-export async function extractFilters(rawGoal, { generate = generateJson } = {}) {
-  const prompt = `${SYSTEM_PROMPT}\n\nGoal:\n${rawGoal}\n\nJSON:`;
+export async function extractFilters(rawGoal, { generate = generateJson, brandDoc = null } = {}) {
+  const brandContext = brandDoc
+    ? `\n\nBrand context (use this to fill gaps not covered by the goal):\n${brandDoc}`
+    : "";
+  const prompt = `${SYSTEM_PROMPT}${brandContext}\n\nGoal:\n${rawGoal}\n\nJSON:`;
   const result = await generate(prompt);
   if ((result.confidence ?? 0) < 0.7) {
     return { ...result, needsClarification: true, clarification: result.clarification || "Please add more detail." };
