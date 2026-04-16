@@ -1,3 +1,9 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
+import { apiFetch } from "@/lib/api";
+
 const DELIVERABILITY_ITEMS = [
   { id: "domain", label: "Separate sending domain configured in Instantly.ai (e.g. recruit-nst.com)" },
   { id: "spf", label: "SPF record added to sending domain DNS" },
@@ -8,9 +14,87 @@ const DELIVERABILITY_ITEMS = [
 ];
 
 export default function SettingsPage() {
+  const { data: session } = useSession();
+  const isAdmin = session?.user?.role === "ADMIN";
+
+  const [content, setContent] = useState("");
+  const [savedAt, setSavedAt] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    if (!session?.backendToken) return;
+    apiFetch("/api/brand-doc", { token: session.backendToken })
+      .then((data) => {
+        if (data.brandDoc) {
+          setContent(data.brandDoc.content);
+          setSavedAt(data.brandDoc.updatedAt);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [session]);
+
+  async function handleSave() {
+    setError(null);
+    setSaving(true);
+    try {
+      const data = await apiFetch("/api/brand-doc", {
+        token: session.backendToken,
+        method: "POST",
+        body: { content }
+      });
+      setSavedAt(data.brandDoc.updatedAt);
+    } catch (e) {
+      setError(e.message || "Failed to save");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="space-y-8 max-w-2xl">
       <h1 className="text-xl font-bold">Settings</h1>
+
+      <section className="space-y-3">
+        <h2 className="font-semibold">Brand document</h2>
+        <p className="text-sm text-gray-600">
+          Paste your brand guidelines here. Every AI-generated email, filter, and follow-up will
+          use this as context automatically. Set once — applies to all campaigns.
+        </p>
+        {loading ? (
+          <p className="text-sm text-gray-400">Loading…</p>
+        ) : (
+          <>
+            <textarea
+              className="w-full h-64 border rounded p-3 text-sm font-mono resize-y disabled:bg-gray-50"
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              placeholder="Paste brand doc content here…"
+              disabled={!isAdmin}
+            />
+            {savedAt && (
+              <p className="text-xs text-gray-400">
+                Last saved: {new Date(savedAt).toLocaleString()}
+              </p>
+            )}
+            {error && <p className="text-sm text-red-500">{error}</p>}
+            {isAdmin && (
+              <button
+                onClick={handleSave}
+                disabled={saving || !content.trim()}
+                className="px-4 py-2 bg-black text-white rounded text-sm disabled:opacity-50"
+              >
+                {saving ? "Saving…" : "Save brand doc"}
+              </button>
+            )}
+            {!isAdmin && (
+              <p className="text-xs text-gray-400">Only admins can update the brand document.</p>
+            )}
+          </>
+        )}
+      </section>
 
       <section className="space-y-2">
         <h2 className="font-semibold">Deliverability checklist</h2>
