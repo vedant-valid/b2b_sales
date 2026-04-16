@@ -1,7 +1,6 @@
 import { getBrandDoc } from "../../services/brandDoc.js";
 import { prisma } from "../../lib/prisma.js";
 import { resetDb } from "../setup.js";
-import { createUser } from "../helpers/factory.js";
 
 beforeEach(resetDb);
 
@@ -12,11 +11,8 @@ describe("brandDoc service", () => {
   });
 
   test("returns content when brand doc exists", async () => {
-    const { user } = await createUser({ email: `bd${Date.now()}@x.com`, role: "ADMIN" });
-    await prisma.brandDoc.upsert({
-      where: { id: "singleton" },
-      update: { content: "NST brand content", uploadedById: user.id },
-      create: { id: "singleton", content: "NST brand content", uploadedById: user.id }
+    await prisma.brandDoc.create({
+      data: { id: "singleton", content: "NST brand content" }
     });
     const doc = await getBrandDoc();
     expect(doc).not.toBeNull();
