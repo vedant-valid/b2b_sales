@@ -19,7 +19,8 @@ export async function runGenerateEmailJob(job) {
   const lead = await prisma.lead.findUnique({ where: { id: leadId } });
   if (!lead) throw new Error(`lead ${leadId} not found`);
 
-  const draft = await generateDraft(lead, DEFAULT_PROFILE);
+  const brandDoc = await prisma.brandDoc.findUnique({ where: { id: "singleton" } });
+  const draft = await generateDraft(lead, DEFAULT_PROFILE, { brandDoc: brandDoc?.content ?? null });
   const latest = await prisma.email.findFirst({ where: { leadId }, orderBy: { version: "desc" } });
   const version = latest ? latest.version + 1 : 1;
 
