@@ -34,7 +34,7 @@ export default function SettingsPage() {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [session]);
+  }, [session?.backendToken]);
 
   async function handleSave() {
     setError(null);
