@@ -88,6 +88,10 @@ router.post("/:id/approve-leads", requireRole("ADMIN", "MANAGER"), async (req, r
     if (!campaign) return res.status(404).json({ error: "not_found" });
     if (campaign.status !== "AWAITING_LEAD_APPROVAL") return res.status(409).json({ error: "invalid_status" });
     const leads = await prisma.lead.findMany({ where: { campaignId: campaign.id, email: { not: null } } });
+    if (leads.length === 0) {
+      await prisma.campaign.update({ where: { id: campaign.id }, data: { status: "DRAFT" } });
+      return res.status(409).json({ error: "no_leads_with_email" });
+    }
     const boss = await getBoss();
     for (const lead of leads) {
       await boss.send("generate-email", { leadId: lead.id, autoDispatch: true });

@@ -49,5 +49,5 @@ export async function runGenerateEmailJob(job) {
 }
 
 export async function register(boss) {
-  await boss.work(QUEUE, { teamSize: 5, teamConcurrency: 5 }, runGenerateEmailJob);
+  await boss.work(QUEUE, { teamSize: 1, teamConcurrency: 1 }, runGenerateEmailJob);
 }
