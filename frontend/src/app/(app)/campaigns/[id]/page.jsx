@@ -1,5 +1,5 @@
 "use client";
-import { use, useEffect, useState } from "react";
+import { use, useCallback, useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { apiFetch } from "@/lib/api";
 import FilterPreview from "@/components/FilterPreview";
@@ -13,13 +13,14 @@ export default function CampaignDetailPage({ params }) {
   const [error, setError] = useState("");
   const [acting, setActing] = useState(false);
 
-  function loadCampaign() {
+  const loadCampaign = useCallback(() => {
     if (!session?.backendToken) return;
     apiFetch(`/api/campaigns/${id}`, { token: session.backendToken })
-      .then(({ campaign }) => setCampaign(campaign));
-  }
+      .then(({ campaign }) => setCampaign(campaign))
+      .catch((e) => setError(e.message));
+  }, [session?.backendToken, id]);
 
-  useEffect(() => { loadCampaign(); }, [session?.backendToken, id]);
+  useEffect(() => { loadCampaign(); }, [loadCampaign]);
 
   async function onRun() {
     setError("");
@@ -31,19 +32,7 @@ export default function CampaignDetailPage({ params }) {
     } catch (e) { setError(e.message); }
   }
 
-  async function onApprove(gate) {
-    setActing(true);
-    setError("");
-    try {
-      await apiFetch(`/api/campaigns/${id}/${gate}`, {
-        token: session.backendToken, method: "POST"
-      });
-      loadCampaign();
-    } catch (e) { setError(e.message); }
-    finally { setActing(false); }
-  }
-
-  async function onReject(gate) {
+  async function onAction(gate) {
     setActing(true);
     setError("");
     try {
@@ -80,14 +69,14 @@ export default function CampaignDetailPage({ params }) {
           </p>
           <div className="flex gap-2">
             <button
-              onClick={() => onApprove("approve-leads")}
+              onClick={() => onAction("approve-leads")}
               disabled={acting}
               className="bg-green-600 text-white px-4 py-2 rounded text-sm disabled:opacity-50"
             >
               Approve — generate emails
             </button>
             <button
-              onClick={() => onReject("reject-leads")}
+              onClick={() => onAction("reject-leads")}
               disabled={acting}
               className="bg-red-600 text-white px-4 py-2 rounded text-sm disabled:opacity-50"
             >
@@ -104,14 +93,14 @@ export default function CampaignDetailPage({ params }) {
           </p>
           <div className="flex gap-2">
             <button
-              onClick={() => onApprove("approve-emails")}
+              onClick={() => onAction("approve-emails")}
               disabled={acting}
               className="bg-green-600 text-white px-4 py-2 rounded text-sm disabled:opacity-50"
             >
               Approve &amp; launch
             </button>
             <button
-              onClick={() => onReject("reject-emails")}
+              onClick={() => onAction("reject-emails")}
               disabled={acting}
               className="bg-red-600 text-white px-4 py-2 rounded text-sm disabled:opacity-50"
             >
