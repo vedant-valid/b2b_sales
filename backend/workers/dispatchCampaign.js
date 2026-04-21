@@ -1,10 +1,10 @@
 import { prisma } from "../lib/prisma.js";
-import { createCampaign as realCreate, pushLeads as realPush } from "../services/instantly.js";
+import { createCampaign as realCreate, pushLeads as realPush, activateCampaign as realActivate } from "../services/instantly.js";
 import { logger } from "../lib/logger.js";
 
 export const QUEUE = "dispatch-to-instantly";
 
-let instantly = { createCampaign: realCreate, pushLeads: realPush };
+let instantly = { createCampaign: realCreate, pushLeads: realPush, activateCampaign: realActivate };
 export function __setInstantlyImpl(impl) { instantly = impl; }
 
 export async function runDispatchJob(job) {
@@ -47,6 +47,7 @@ export async function runDispatchJob(job) {
   }
 
   const result = await instantly.pushLeads(instantlyCampaignId, payload);
+  await instantly.activateCampaign(instantlyCampaignId);
   const rejectedEmails = new Set((result.rejected || []).map((r) => r.email));
 
   for (const p of payload) {
@@ -57,7 +58,6 @@ export async function runDispatchJob(job) {
         where: { id: p._emailId },
         data: { status: "SENT", sentAt: new Date() }
       });
-      await prisma.lead.update({ where: { id: p._leadId }, data: { status: "CONTACTED" } });
     }
   }
   logger.info(`dispatch: campaign=${campaignId} accepted=${result.accepted} rejected=${(result.rejected || []).length}`);

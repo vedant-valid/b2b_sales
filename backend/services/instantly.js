@@ -1,4 +1,5 @@
 import { env } from "../config/env.js";
+import { logger } from "../lib/logger.js";
 
 const BASE = "https://api.instantly.ai";
 
@@ -15,29 +16,73 @@ async function req(path, method, body, { fetch: fetchFn = globalThis.fetch } = {
     headers: headers(),
     body: body ? JSON.stringify(body) : undefined
   });
-  if (!res.ok) throw new Error(`instantly_${method}_${path}_${res.status}`);
+  if (!res.ok) {
+    let detail = "";
+    try { detail = JSON.stringify(await res.json()); } catch { /* ignore */ }
+    throw new Error(`instantly_${method}_${path}_${res.status}: ${detail}`);
+  }
   return res.json();
 }
 
 export async function createCampaign(name, opts = {}) {
-  const json = await req("/api/v2/campaigns", "POST", { name }, opts);
-  return { instantlyCampaignId: json.id };
+  const sendingAccounts = env.INSTANTLY_SENDING_ACCOUNTS
+    ? env.INSTANTLY_SENDING_ACCOUNTS.split(",").map(s => s.trim()).filter(Boolean)
+    : undefined;
+
+  const json = await req("/api/v2/campaigns", "POST", {
+    name,
+    allow_risky_contacts: true,
+    ...(sendingAccounts?.length && { email_list: sendingAccounts }),
+    campaign_schedule: {
+      schedules: [{
+        name: "Default",
+        timing: { from: "09:00", to: "18:00" },
+        days: { 0: false, 1: true, 2: true, 3: true, 4: true, 5: true, 6: false },
+        timezone: "Asia/Kolkata"
+      }]
+    },
+    sequences: [{
+      steps: [{
+        type: "email",
+        delay: 0,
+        delay_unit: "minutes",
+        variants: [{ subject: "{{outreach_subject}}", body: "{{personalization}}" }]
+      }]
+    }]
+  }, opts);
+  const instantlyCampaignId = json.id;
+
+  return { instantlyCampaignId };
 }
 
 export async function pushLeads(instantlyCampaignId, leads, opts = {}) {
-  const payload = {
-    campaign_id: instantlyCampaignId,
-    leads: leads.map((l) => ({
-      email: l.email,
-      first_name: l.firstName,
-      last_name: l.lastName,
-      company_name: l.company,
-      personalization: l.body,
-      custom_variables: { subject: l.subject, body: l.body }
-    }))
-  };
-  const json = await req("/api/v2/leads", "POST", payload, opts);
-  return { accepted: json.accepted || 0, rejected: json.rejected || [] };
+  const devMode = env.DEV_MODE === "true";
+  const testEmail = env.DEV_EMAIL || "madnevedant15@gmail.com";
+
+  const rejected = [];
+  for (const l of leads) {
+    const recipientEmail = devMode ? testEmail : l.email;
+    try {
+      await req("/api/v2/leads", "POST", {
+        email: recipientEmail,
+        campaign: instantlyCampaignId,
+        first_name: l.firstName,
+        last_name: l.lastName,
+        company_name: l.company,
+        personalization: l.body,
+        custom_variables: { outreach_subject: l.subject }
+      }, opts);
+      if (devMode) logger.info(`instantly: dev mode — redirected ${l.email} → ${testEmail}`);
+    } catch (err) {
+      logger.error(`instantly: failed to push lead ${l.email}: ${err.message}`);
+      rejected.push({ email: l.email });
+    }
+  }
+  return { accepted: leads.length - rejected.length, rejected };
+}
+
+export async function activateCampaign(instantlyCampaignId, opts = {}) {
+  await req(`/api/v2/campaigns/${instantlyCampaignId}/activate`, "POST", {}, opts);
 }
 
 export async function sendSubsequence(instantlyCampaignId, leadEmail, body, opts = {}) {

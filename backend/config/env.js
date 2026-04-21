@@ -11,7 +11,10 @@ const schema = z.object({
   LUSHA_API_KEY: z.string().optional(),
   INSTANTLY_API_KEY: z.string().optional(),
   INSTANTLY_WEBHOOK_SECRET: z.string().optional(),
-  FRONTEND_URL: z.string().default("http://localhost:3000")
+  INSTANTLY_SENDING_ACCOUNTS: z.string().optional(),
+  FRONTEND_URL: z.string().default("http://localhost:3000"),
+  DEV_MODE: z.string().optional(),
+  DEV_EMAIL: z.string().optional()
 });
 
 export const env = schema.parse(process.env);

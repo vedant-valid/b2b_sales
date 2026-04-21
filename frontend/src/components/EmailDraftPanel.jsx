@@ -7,6 +7,7 @@ export default function EmailDraftPanel({ leadId, emails: initial, onRefresh }) 
   const { data: session } = useSession();
   const [emails, setEmails] = useState(initial);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
   const token = session?.backendToken;
 
   async function reload() {
@@ -33,9 +34,12 @@ export default function EmailDraftPanel({ leadId, emails: initial, onRefresh }) 
 
   async function send(id) {
     setBusy(true);
+    setError(null);
     try {
       await apiFetch(`/api/emails/${id}/send`, { token, method: "POST" });
       reload();
+    } catch (e) {
+      setError(e.data?.detail || e.message || "Failed to send email.");
     } finally { setBusy(false); }
   }
 
@@ -47,6 +51,7 @@ export default function EmailDraftPanel({ leadId, emails: initial, onRefresh }) 
           {busy ? "Working…" : "Generate draft"}
         </button>
       </div>
+      {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded p-2">{error}</p>}
       {emails.length === 0 && <p className="text-sm text-gray-500">No drafts yet.</p>}
       {emails.map((e) => (
         <div key={e.id} className="border rounded p-3 space-y-2">

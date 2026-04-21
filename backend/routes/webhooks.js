@@ -1,16 +1,34 @@
 import { Router } from "express";
-import { getBoss } from "../lib/pgboss.js";
+import { getBoss as realGetBoss } from "../lib/pgboss.js";
+import { prisma } from "../lib/prisma.js";
+
+let getBoss = realGetBoss;
+export function __setBossImpl(impl) { getBoss = impl; }
+
+let _webhookSecret = null;
+export function __setWebhookSecret(s) { _webhookSecret = s; }
+function getWebhookSecret() { return _webhookSecret ?? process.env.INSTANTLY_WEBHOOK_SECRET; }
 
 const router = Router();
 
 router.post("/instantly", async (req, res, next) => {
   try {
     const secret = req.headers["x-webhook-secret"];
-    if (!secret || secret !== process.env.INSTANTLY_WEBHOOK_SECRET) {
+    if (!secret || secret !== getWebhookSecret()) {
       return res.status(401).json({ error: "unauthorized" });
     }
-    const { event, lead_email, body, received_at } = req.body || {};
-    if (event !== "reply_received") return res.json({ ok: true });
+    const { event, event_type, lead_email, body, received_at } = req.body || {};
+    const eventName = event_type || event;
+
+    if (eventName === "email_sent") {
+      const lead = await prisma.lead.findFirst({ where: { email: lead_email } });
+      if (lead && lead.status === "NEW") {
+        await prisma.lead.update({ where: { id: lead.id }, data: { status: "CONTACTED" } });
+      }
+      return res.json({ ok: true });
+    }
+
+    if (eventName !== "reply_received") return res.json({ ok: true });
 
     const boss = await getBoss();
     const jobId = await boss.send("process-reply", {

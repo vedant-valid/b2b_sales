@@ -5,6 +5,7 @@ import { requireAuth } from "../middleware/auth.js";
 import { requireRole } from "../middleware/rbac.js";
 import { extractFilters as realExtractFilters } from "../services/prompt.js";
 import { getBoss } from "../lib/pgboss.js";
+import { env } from "../config/env.js";
 
 let extract = realExtractFilters;
 export function __setExtractFilters(fn) { extract = fn; }
@@ -141,6 +142,29 @@ router.post("/:id/reject-emails", requireRole("ADMIN", "MANAGER"), async (req, r
     await prisma.lead.deleteMany({ where: { id: { in: leadIds } } });
     await prisma.campaign.update({ where: { id: campaign.id }, data: { status: "DRAFT" } });
     res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+// Dev-only: seed a test lead so you can verify the full email pipeline locally
+router.post("/:id/dev-seed-lead", requireRole("ADMIN", "MANAGER"), async (req, res, next) => {
+  if (env.DEV_MODE !== "true") return res.status(403).json({ error: "only_available_in_dev_mode" });
+  try {
+    const campaign = await prisma.campaign.findUnique({ where: { id: req.params.id } });
+    if (!campaign) return res.status(404).json({ error: "not_found" });
+    const devEmail = env.DEV_EMAIL || "madnevedant15@gmail.com";
+    const existing = await prisma.lead.findFirst({ where: { campaignId: campaign.id, email: devEmail } });
+    if (existing) return res.json({ lead: existing });
+    const lead = await prisma.lead.create({
+      data: {
+        firstName: "Dev",
+        lastName: "Test",
+        email: devEmail,
+        title: "Test Lead",
+        company: "Dev Sandbox",
+        campaignId: campaign.id
+      }
+    });
+    res.status(201).json({ lead });
   } catch (e) { next(e); }
 });
 

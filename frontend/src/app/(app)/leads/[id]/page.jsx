@@ -1,18 +1,19 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
+import { use, useEffect, useState, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { apiFetch } from "@/lib/api";
 import EmailDraftPanel from "@/components/EmailDraftPanel";
 
 export default function LeadDetailPage({ params }) {
+  const { id } = use(params);
   const { data: session } = useSession();
   const [lead, setLead] = useState(null);
 
   const load = useCallback(async () => {
     if (!session?.backendToken) return;
-    const { lead } = await apiFetch(`/api/leads/${params.id}`, { token: session.backendToken });
+    const { lead } = await apiFetch(`/api/leads/${id}`, { token: session.backendToken });
     setLead(lead);
-  }, [session?.backendToken, params.id]);
+  }, [session?.backendToken, id]);
 
   useEffect(() => { load(); }, [load]);
 

@@ -1,8 +1,11 @@
 import { prisma } from "../lib/prisma.js";
-import { classifySentiment, draftFollowUp } from "../services/replyHandler.js";
+import { classifySentiment as realClassify, draftFollowUp as realDraftFollowUp } from "../services/replyHandler.js";
 import { logger } from "../lib/logger.js";
 
 export const QUEUE = "process-reply";
+
+let replyHandler = { classifySentiment: realClassify, draftFollowUp: realDraftFollowUp };
+export function __setReplyHandlerImpl(impl) { replyHandler = impl; }
 
 const SENTIMENT_TO_STATUS = {
   INTERESTED: "INTERESTED",
@@ -24,8 +27,8 @@ export async function runProcessReplyJob(job) {
   });
   if (existing) { logger.info(`process-reply: duplicate skipped for lead ${lead.id}`); return; }
 
-  const sentiment = await classifySentiment(body);
-  const follow = await draftFollowUp(body, lead, sentiment);
+  const sentiment = await replyHandler.classifySentiment(body);
+  const follow = await replyHandler.draftFollowUp(body, lead, sentiment);
 
   await prisma.reply.create({
     data: {

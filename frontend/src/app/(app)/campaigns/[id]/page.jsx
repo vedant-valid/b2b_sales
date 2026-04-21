@@ -4,11 +4,15 @@ import { useSession } from "next-auth/react";
 import { apiFetch } from "@/lib/api";
 import FilterPreview from "@/components/FilterPreview";
 import JobProgressBar from "@/components/JobProgressBar";
+import Link from "next/link";
+
+const DEV_MODE = process.env.NEXT_PUBLIC_DEV_MODE === "true";
 
 export default function CampaignDetailPage({ params }) {
   const { id } = use(params);
   const { data: session } = useSession();
   const [campaign, setCampaign] = useState(null);
+  const [leads, setLeads] = useState([]);
   const [jobId, setJobId] = useState(null);
   const [error, setError] = useState("");
   const [acting, setActing] = useState(false);
@@ -20,7 +24,17 @@ export default function CampaignDetailPage({ params }) {
       .catch((e) => setError(e.message));
   }, [session?.backendToken, id]);
 
-  useEffect(() => { loadCampaign(); }, [loadCampaign]);
+  const loadLeads = useCallback(() => {
+    if (!session?.backendToken) return;
+    apiFetch(`/api/leads?campaignId=${id}`, { token: session.backendToken })
+      .then(({ leads }) => setLeads(leads || []))
+      .catch(() => {});
+  }, [session?.backendToken, id]);
+
+  useEffect(() => {
+    loadCampaign();
+    loadLeads();
+  }, [loadCampaign, loadLeads]);
 
   async function onRun() {
     setError("");
@@ -40,6 +54,19 @@ export default function CampaignDetailPage({ params }) {
         token: session.backendToken, method: "POST"
       });
       loadCampaign();
+      loadLeads();
+    } catch (e) { setError(e.message); }
+    finally { setActing(false); }
+  }
+
+  async function onSeedDevLead() {
+    setActing(true);
+    setError("");
+    try {
+      await apiFetch(`/api/campaigns/${id}/dev-seed-lead`, {
+        token: session.backendToken, method: "POST"
+      });
+      loadLeads();
     } catch (e) { setError(e.message); }
     finally { setActing(false); }
   }
@@ -50,6 +77,12 @@ export default function CampaignDetailPage({ params }) {
 
   return (
     <div className="space-y-4">
+      {DEV_MODE && (
+        <div className="bg-yellow-100 border border-yellow-400 text-yellow-800 text-xs px-3 py-1 rounded font-mono">
+          DEV MODE — all outbound emails redirected to madnevedant15@gmail.com
+        </div>
+      )}
+
       <div className="flex justify-between items-start">
         <div>
           <h1 className="text-xl font-bold">{campaign.name}</h1>
@@ -120,6 +153,54 @@ export default function CampaignDetailPage({ params }) {
       <div>
         <h2 className="font-semibold mb-1">Extracted filters</h2>
         <FilterPreview filters={campaign.extractedFilters} />
+      </div>
+
+      <div>
+        <div className="flex justify-between items-center mb-2">
+          <h2 className="font-semibold">Leads ({leads.length})</h2>
+          {DEV_MODE && !isViewer && (
+            <button
+              onClick={onSeedDevLead}
+              disabled={acting}
+              className="text-xs border border-yellow-500 text-yellow-700 bg-yellow-50 px-2 py-1 rounded disabled:opacity-50"
+            >
+              + Add test lead (dev)
+            </button>
+          )}
+        </div>
+        {leads.length === 0 ? (
+          <p className="text-sm text-gray-500">No leads yet.</p>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left border-b">
+                <th className="pb-1">Name</th>
+                <th>Title</th>
+                <th>Company</th>
+                <th>Email</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {leads.map((l) => (
+                <tr key={l.id} className={`border-b hover:bg-gray-50 ${l.email === "madnevedant15@gmail.com" && DEV_MODE ? "bg-yellow-50" : ""}`}>
+                  <td className="py-2">
+                    <Link className="underline" href={`/leads/${l.id}`}>
+                      {l.firstName} {l.lastName}
+                      {l.email === "madnevedant15@gmail.com" && DEV_MODE && (
+                        <span className="ml-1 text-xs text-yellow-700 font-mono">[DEV]</span>
+                      )}
+                    </Link>
+                  </td>
+                  <td>{l.title}</td>
+                  <td>{l.company}</td>
+                  <td>{l.email}</td>
+                  <td>{l.status}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );

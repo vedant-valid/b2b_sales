@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { useSession } from "next-auth/react";
+import { useSession, signOut } from "next-auth/react";
 import { apiFetch } from "@/lib/api";
 import LeadTable from "@/components/LeadTable";
 
@@ -10,7 +10,9 @@ export default function LeadsPage() {
 
   useEffect(() => {
     if (!session?.backendToken) return;
-    apiFetch("/api/leads", { token: session.backendToken }).then(({ leads }) => setLeads(leads));
+    apiFetch("/api/leads", { token: session.backendToken })
+      .then(({ leads }) => setLeads(leads))
+      .catch((err) => { if (err.status === 401) signOut({ callbackUrl: "/login" }); });
   }, [session?.backendToken]);
 
   return (

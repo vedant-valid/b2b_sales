@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useSession } from "next-auth/react";
+import { useSession, signOut } from "next-auth/react";
 import { apiFetch } from "@/lib/api";
 
 export default function CampaignsPage() {
@@ -10,7 +10,9 @@ export default function CampaignsPage() {
 
   useEffect(() => {
     if (!session?.backendToken) return;
-    apiFetch("/api/campaigns", { token: session.backendToken }).then(({ campaigns }) => setItems(campaigns));
+    apiFetch("/api/campaigns", { token: session.backendToken })
+      .then(({ campaigns }) => setItems(campaigns))
+      .catch((err) => { if (err.status === 401) signOut({ callbackUrl: "/login" }); });
   }, [session?.backendToken]);
 
   return (

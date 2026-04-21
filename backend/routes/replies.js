@@ -2,7 +2,10 @@ import { Router } from "express";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/auth.js";
 import { requireRole } from "../middleware/rbac.js";
-import { sendSubsequence } from "../services/instantly.js";
+import { sendSubsequence as realSendSubsequence } from "../services/instantly.js";
+
+let instantly = { sendSubsequence: realSendSubsequence };
+export function __setInstantlyImpl(impl) { instantly = impl; }
 
 const router = Router();
 router.use(requireAuth);
@@ -46,7 +49,7 @@ router.post("/:id/approve", requireRole("ADMIN", "MANAGER"), async (req, res, ne
     if (!outgoing) return res.status(400).json({ error: "missing_body" });
     const cmpId = reply.lead.campaign.instantlyCampaignId;
     if (!cmpId) return res.status(409).json({ error: "campaign_not_dispatched" });
-    await sendSubsequence(cmpId, reply.lead.email, outgoing);
+    await instantly.sendSubsequence(cmpId, reply.lead.email, outgoing);
     res.json({ ok: true });
   } catch (e) { next(e); }
 });

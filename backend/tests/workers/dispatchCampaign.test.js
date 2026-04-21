@@ -4,6 +4,8 @@ import { prisma } from "../../lib/prisma.js";
 import { resetDb } from "../setup.js";
 import { createUser } from "../helpers/factory.js";
 
+afterAll(async () => { await resetDb(); });
+
 beforeEach(async () => {
   await resetDb();
   __setInstantlyImpl({
@@ -45,10 +47,11 @@ describe("dispatchCampaign worker", () => {
     const sent = emails.filter(e => e.status === "SENT");
     expect(sent).toHaveLength(2);
 
+    // Leads stay NEW until Instantly fires the email_sent webhook
     const contactedLeads = await prisma.lead.findMany({
       where: { campaignId: campaign.id, status: "CONTACTED" }
     });
-    expect(contactedLeads).toHaveLength(2);
+    expect(contactedLeads).toHaveLength(0);
   });
 
   test("marks rejected emails as FAILED, does not contact their leads", async () => {
@@ -82,7 +85,8 @@ describe("dispatchCampaign worker", () => {
 
     const goodEmails = await prisma.email.findMany({ where: { leadId: good.id } });
     expect(goodEmails[0].status).toBe("SENT");
+    // Good lead stays NEW — CONTACTED is set by the email_sent webhook, not dispatch
     const goodLead = await prisma.lead.findUnique({ where: { id: good.id } });
-    expect(goodLead.status).toBe("CONTACTED");
+    expect(goodLead.status).toBe("NEW");
   });
 });

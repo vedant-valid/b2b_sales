@@ -8,7 +8,11 @@
     "start": "node server.js",
     "test": "NODE_OPTIONS=--experimental-vm-modules jest",
     "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev"
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:seed": "node prisma/seed.js"
+  },
+  "prisma": {
+    "seed": "node prisma/seed.js"
   },
   "dependencies": {
     "express": "^4.19.2",

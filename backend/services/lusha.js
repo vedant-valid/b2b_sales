@@ -19,37 +19,143 @@ async function requestWithRetry(url, init, { retries = 3, retryDelayMs = 1000, f
   }
 }
 
-function normalize(p) {
+// Lusha seniority IDs (from GET /prospecting/filters/contacts/seniority)
+const SENIORITY_IDS = {
+  "founder": 10, "partner": 7,
+  "c-suite": 9, "c suite": 9, "csuite": 9, "c-level": 9, "c level": 9, "executive": 9,
+  "vice president": 8, "vp": 8,
+  "director": 6,
+  "manager": 5,
+  "senior": 4,
+  "entry": 3,
+  "intern": 2,
+  "other": 1
+};
+
+// Lusha company size ranges (from GET /prospecting/filters/companies/sizes)
+const SIZE_RANGES = {
+  "1-10": { min: 1, max: 10 },
+  "11-50": { min: 11, max: 50 },
+  "51-200": { min: 51, max: 200 },
+  "201-500": { min: 201, max: 500 },
+  "501-1000": { min: 501, max: 1000 },
+  "1001-5000": { min: 1001, max: 5000 },
+  "5001-10000": { min: 5001, max: 10000 },
+  "10001+": { min: 10001 },
+  // Natural language
+  "startup": { min: 1, max: 200 },
+  "small": { min: 1, max: 200 },
+  "medium": { min: 201, max: 1000 },
+  "large": { min: 1001, max: 10000 },
+  "enterprise": { min: 10001 },
+  "unicorn": { min: 1001, max: 10000 }
+};
+
+function buildLushaBody(geminiFilters, page = 0, size = 25) {
+  const contactsInclude = {};
+  const companiesInclude = {};
+
+  if (geminiFilters.departments?.length) {
+    contactsInclude.departments = geminiFilters.departments;
+  }
+
+  if (geminiFilters.seniorities?.length) {
+    const ids = [...new Set(
+      geminiFilters.seniorities
+        .map(s => SENIORITY_IDS[s.toLowerCase()])
+        .filter(Boolean)
+    )];
+    if (ids.length) contactsInclude.seniority = ids;
+  }
+
+  if (geminiFilters.locations?.length) {
+    contactsInclude.locations = geminiFilters.locations.map(l => ({ country: l }));
+    companiesInclude.locations = geminiFilters.locations.map(l => ({ country: l }));
+  }
+
+  // Always require work email so we can contact them
+  contactsInclude.existing_data_points = ["work_email"];
+
+  if (geminiFilters.companySizes?.length) {
+    const sizes = geminiFilters.companySizes
+      .map(s => SIZE_RANGES[s.toLowerCase()] || null)
+      .filter(Boolean);
+    if (sizes.length) companiesInclude.sizes = sizes;
+  }
+
   return {
-    lushaPersonId: p.id,
-    firstName: p.firstName,
-    lastName: p.lastName,
-    title: p.jobTitle,
-    company: p.companyName,
-    location: p.location?.country || p.location?.city || null,
-    linkedinUrl: p.linkedinUrl,
-    department: p.department,
-    seniority: p.seniority
+    pages: { page, size },
+    filters: {
+      contacts: { include: contactsInclude },
+      companies: { include: companiesInclude }
+    }
   };
 }
 
-export async function searchLeads(filters, opts = {}) {
-  const res = await requestWithRetry(`${BASE}/prospecting/search`, {
-    method: "POST",
-    headers: headers(),
-    body: JSON.stringify({ filters, pages: { page: 0, size: 50 } })
-  }, opts);
-  if (!res.ok) throw new Error(`lusha_search_failed_${res.status}`);
-  const json = await res.json();
-  return (json.data || []).map(normalize);
+function normalizeName(fullName = "") {
+  const parts = fullName.trim().split(/\s+/);
+  return {
+    firstName: parts[0] || "",
+    lastName: parts.slice(1).join(" ") || ""
+  };
 }
 
-export async function enrichContact(lushaPersonId, opts = {}) {
-  const res = await requestWithRetry(`${BASE}/prospecting/contact/${lushaPersonId}`, {
-    method: "GET",
-    headers: headers()
+function normalizeEnriched(contact) {
+  const d = contact.data || {};
+  const emailEntry = (d.emailAddresses || []).find(e => e.emailType === "work") || d.emailAddresses?.[0];
+  return {
+    lushaContactId: contact.id,
+    firstName: d.firstName || "",
+    lastName: d.lastName || "",
+    email: emailEntry?.email || null,
+    phone: d.phoneNumbers?.[0]?.number || null,
+    title: d.jobTitle || null,
+    company: d.companyName || null,
+    location: d.location?.country || null,
+    linkedinUrl: d.socialLinks?.linkedin || null,
+    department: d.departments?.[0] || null,
+    seniority: d.seniority?.[0]?.name || null
+  };
+}
+
+/**
+ * Search Lusha for leads matching geminiFilters, then batch-enrich to get emails.
+ * Returns an array of fully enriched lead objects ready to store.
+ */
+export async function searchLeads(geminiFilters, opts = {}) {
+  const body = buildLushaBody(geminiFilters, 0, 25);
+
+  const searchRes = await requestWithRetry(`${BASE}/prospecting/contact/search`, {
+    method: "POST",
+    headers: headers(),
+    body: JSON.stringify(body)
   }, opts);
-  if (!res.ok) throw new Error(`lusha_enrich_failed_${res.status}`);
-  const json = await res.json();
-  return { email: json.data?.email || null, phone: json.data?.phoneNumber || null };
+
+  if (!searchRes.ok) {
+    const err = await searchRes.json().catch(() => ({}));
+    throw new Error(`lusha_search_failed_${searchRes.status}: ${err.message || ""}`);
+  }
+
+  const searchJson = await searchRes.json();
+  const requestId = searchJson.requestId;
+  const rawContacts = searchJson.data || [];
+
+  if (rawContacts.length === 0) return [];
+
+  // Batch enrich to get emails and full details
+  const contactIds = rawContacts.map(c => c.contactId).filter(Boolean);
+  const enrichRes = await requestWithRetry(`${BASE}/prospecting/contact/enrich`, {
+    method: "POST",
+    headers: headers(),
+    body: JSON.stringify({ requestId, contactIds })
+  }, opts);
+
+  if (!enrichRes.ok) {
+    const err = await enrichRes.json().catch(() => ({}));
+    throw new Error(`lusha_enrich_failed_${enrichRes.status}: ${err.message || ""}`);
+  }
+
+  const enrichJson = await enrichRes.json();
+  const enriched = (enrichJson.contacts || []).filter(c => c.isSuccess);
+  return enriched.map(normalizeEnriched);
 }
