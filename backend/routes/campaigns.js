@@ -102,7 +102,11 @@ router.post("/:id/reject-leads", requireRole("ADMIN", "MANAGER"), async (req, re
     const campaign = await prisma.campaign.findUnique({ where: { id: req.params.id } });
     if (!campaign) return res.status(404).json({ error: "not_found" });
     if (campaign.status !== "AWAITING_LEAD_APPROVAL") return res.status(409).json({ error: "invalid_status" });
-    await prisma.lead.deleteMany({ where: { campaignId: campaign.id } });
+    const leads = await prisma.lead.findMany({ where: { campaignId: campaign.id }, select: { id: true } });
+    const leadIds = leads.map(l => l.id);
+    await prisma.reply.deleteMany({ where: { leadId: { in: leadIds } } });
+    await prisma.email.deleteMany({ where: { leadId: { in: leadIds } } });
+    await prisma.lead.deleteMany({ where: { id: { in: leadIds } } });
     await prisma.campaign.update({ where: { id: campaign.id }, data: { status: "DRAFT" } });
     res.json({ ok: true });
   } catch (e) { next(e); }
@@ -128,8 +132,9 @@ router.post("/:id/reject-emails", requireRole("ADMIN", "MANAGER"), async (req, r
     if (campaign.status !== "AWAITING_EMAIL_APPROVAL") return res.status(409).json({ error: "invalid_status" });
     const leads = await prisma.lead.findMany({ where: { campaignId: campaign.id }, select: { id: true } });
     const leadIds = leads.map(l => l.id);
+    await prisma.reply.deleteMany({ where: { leadId: { in: leadIds } } });
     await prisma.email.deleteMany({ where: { leadId: { in: leadIds } } });
-    await prisma.lead.deleteMany({ where: { campaignId: campaign.id } });
+    await prisma.lead.deleteMany({ where: { id: { in: leadIds } } });
     await prisma.campaign.update({ where: { id: campaign.id }, data: { status: "DRAFT" } });
     res.json({ ok: true });
   } catch (e) { next(e); }

@@ -110,10 +110,9 @@ describe("campaigns routes", () => {
 
 describe("approval gates", () => {
   test("POST /approve-leads enqueues generate-email and sets RUNNING", async () => {
-    const { token } = await createUser({ role: "MANAGER", email: `al${Date.now()}@x.com` });
-    const decoded = JSON.parse(Buffer.from(token.split(".")[1], "base64").toString());
+    const { user, token } = await createUser({ role: "MANAGER", email: `al${Date.now()}@x.com` });
     const campaign = await prisma.campaign.create({
-      data: { name: "G", rawGoal: "goal here", extractedFilters: {}, status: "AWAITING_LEAD_APPROVAL", createdById: decoded.sub }
+      data: { name: "G", rawGoal: "goal here", extractedFilters: {}, status: "AWAITING_LEAD_APPROVAL", createdById: user.id }
     });
     await prisma.lead.createMany({
       data: [
@@ -134,10 +133,9 @@ describe("approval gates", () => {
   });
 
   test("POST /approve-leads returns 409 if campaign not in AWAITING_LEAD_APPROVAL", async () => {
-    const { token } = await createUser({ role: "MANAGER", email: `al2${Date.now()}@x.com` });
-    const decoded = JSON.parse(Buffer.from(token.split(".")[1], "base64").toString());
+    const { user, token } = await createUser({ role: "MANAGER", email: `al2${Date.now()}@x.com` });
     const campaign = await prisma.campaign.create({
-      data: { name: "G", rawGoal: "goal here", extractedFilters: {}, status: "DRAFT", createdById: decoded.sub }
+      data: { name: "G", rawGoal: "goal here", extractedFilters: {}, status: "DRAFT", createdById: user.id }
     });
 
     const res = await request(app)
@@ -148,13 +146,16 @@ describe("approval gates", () => {
   });
 
   test("POST /reject-leads deletes leads and sets DRAFT", async () => {
-    const { token } = await createUser({ role: "MANAGER", email: `rl${Date.now()}@x.com` });
-    const decoded = JSON.parse(Buffer.from(token.split(".")[1], "base64").toString());
+    const { user, token } = await createUser({ role: "MANAGER", email: `rl${Date.now()}@x.com` });
     const campaign = await prisma.campaign.create({
-      data: { name: "G", rawGoal: "goal here", extractedFilters: {}, status: "AWAITING_LEAD_APPROVAL", createdById: decoded.sub }
+      data: { name: "G", rawGoal: "goal here", extractedFilters: {}, status: "AWAITING_LEAD_APPROVAL", createdById: user.id }
     });
-    await prisma.lead.create({
+    const lead = await prisma.lead.create({
       data: { firstName: "A", lastName: "B", email: "a@x.com", company: "X", campaignId: campaign.id }
+    });
+    // Create a child email to verify FK-safe deletion
+    await prisma.email.create({
+      data: { leadId: lead.id, subject: "Hi", body: "Body", version: 1, status: "DRAFT" }
     });
 
     const res = await request(app)
@@ -172,10 +173,9 @@ describe("approval gates", () => {
   });
 
   test("POST /approve-emails enqueues dispatch and sets RUNNING", async () => {
-    const { token } = await createUser({ role: "MANAGER", email: `ae${Date.now()}@x.com` });
-    const decoded = JSON.parse(Buffer.from(token.split(".")[1], "base64").toString());
+    const { user, token } = await createUser({ role: "MANAGER", email: `ae${Date.now()}@x.com` });
     const campaign = await prisma.campaign.create({
-      data: { name: "G", rawGoal: "goal here", extractedFilters: {}, status: "AWAITING_EMAIL_APPROVAL", createdById: decoded.sub }
+      data: { name: "G", rawGoal: "goal here", extractedFilters: {}, status: "AWAITING_EMAIL_APPROVAL", createdById: user.id }
     });
 
     const res = await request(app)
@@ -190,10 +190,9 @@ describe("approval gates", () => {
   });
 
   test("POST /reject-emails deletes leads + emails and sets DRAFT", async () => {
-    const { token } = await createUser({ role: "MANAGER", email: `re${Date.now()}@x.com` });
-    const decoded = JSON.parse(Buffer.from(token.split(".")[1], "base64").toString());
+    const { user, token } = await createUser({ role: "MANAGER", email: `re${Date.now()}@x.com` });
     const campaign = await prisma.campaign.create({
-      data: { name: "G", rawGoal: "goal here", extractedFilters: {}, status: "AWAITING_EMAIL_APPROVAL", createdById: decoded.sub }
+      data: { name: "G", rawGoal: "goal here", extractedFilters: {}, status: "AWAITING_EMAIL_APPROVAL", createdById: user.id }
     });
     const lead = await prisma.lead.create({
       data: { firstName: "A", lastName: "B", email: "a@x.com", company: "X", campaignId: campaign.id }
@@ -216,5 +215,38 @@ describe("approval gates", () => {
 
     const updated = await prisma.campaign.findUnique({ where: { id: campaign.id } });
     expect(updated.status).toBe("DRAFT");
+  });
+
+  test("POST /reject-leads returns 409 if not in AWAITING_LEAD_APPROVAL", async () => {
+    const { user, token } = await createUser({ role: "MANAGER", email: `rl2${Date.now()}@x.com` });
+    const campaign = await prisma.campaign.create({
+      data: { name: "G", rawGoal: "goal here", extractedFilters: {}, status: "DRAFT", createdById: user.id }
+    });
+    const res = await request(app)
+      .post(`/api/campaigns/${campaign.id}/reject-leads`)
+      .set(authHeader(token));
+    expect(res.status).toBe(409);
+  });
+
+  test("POST /approve-emails returns 409 if not in AWAITING_EMAIL_APPROVAL", async () => {
+    const { user, token } = await createUser({ role: "MANAGER", email: `ae2${Date.now()}@x.com` });
+    const campaign = await prisma.campaign.create({
+      data: { name: "G", rawGoal: "goal here", extractedFilters: {}, status: "DRAFT", createdById: user.id }
+    });
+    const res = await request(app)
+      .post(`/api/campaigns/${campaign.id}/approve-emails`)
+      .set(authHeader(token));
+    expect(res.status).toBe(409);
+  });
+
+  test("POST /reject-emails returns 409 if not in AWAITING_EMAIL_APPROVAL", async () => {
+    const { user, token } = await createUser({ role: "MANAGER", email: `re2${Date.now()}@x.com` });
+    const campaign = await prisma.campaign.create({
+      data: { name: "G", rawGoal: "goal here", extractedFilters: {}, status: "DRAFT", createdById: user.id }
+    });
+    const res = await request(app)
+      .post(`/api/campaigns/${campaign.id}/reject-emails`)
+      .set(authHeader(token));
+    expect(res.status).toBe(409);
   });
 });
