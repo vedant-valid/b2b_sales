@@ -4,6 +4,7 @@ import { __setExtractFilters } from "../../routes/campaigns.js";
 import { prisma } from "../../lib/prisma.js";
 import { createUser, authHeader } from "../helpers/factory.js";
 import { resetDb } from "../setup.js";
+import { stopBoss } from "../../lib/pgboss.js";
 
 const app = createApp();
 
@@ -15,6 +16,8 @@ beforeEach(async () => {
     needsClarification: false
   }));
 });
+
+afterAll(async () => { await stopBoss(); });
 
 describe("campaigns routes", () => {
   test("POST /api/campaigns creates DRAFT with extracted filters", async () => {
@@ -102,5 +105,116 @@ describe("campaigns routes", () => {
     const res = await request(app).get(`/api/campaigns/${c.id}`).set(authHeader(token));
     expect(res.status).toBe(200);
     expect(res.body.campaign.id).toBe(c.id);
+  });
+});
+
+describe("approval gates", () => {
+  test("POST /approve-leads enqueues generate-email and sets RUNNING", async () => {
+    const { token } = await createUser({ role: "MANAGER", email: `al${Date.now()}@x.com` });
+    const decoded = JSON.parse(Buffer.from(token.split(".")[1], "base64").toString());
+    const campaign = await prisma.campaign.create({
+      data: { name: "G", rawGoal: "goal here", extractedFilters: {}, status: "AWAITING_LEAD_APPROVAL", createdById: decoded.sub }
+    });
+    await prisma.lead.createMany({
+      data: [
+        { firstName: "A", lastName: "B", email: "a@x.com", company: "X", campaignId: campaign.id },
+        { firstName: "C", lastName: "D", email: "c@x.com", company: "Y", campaignId: campaign.id }
+      ]
+    });
+
+    const res = await request(app)
+      .post(`/api/campaigns/${campaign.id}/approve-leads`)
+      .set(authHeader(token));
+
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+
+    const updated = await prisma.campaign.findUnique({ where: { id: campaign.id } });
+    expect(updated.status).toBe("RUNNING");
+  });
+
+  test("POST /approve-leads returns 409 if campaign not in AWAITING_LEAD_APPROVAL", async () => {
+    const { token } = await createUser({ role: "MANAGER", email: `al2${Date.now()}@x.com` });
+    const decoded = JSON.parse(Buffer.from(token.split(".")[1], "base64").toString());
+    const campaign = await prisma.campaign.create({
+      data: { name: "G", rawGoal: "goal here", extractedFilters: {}, status: "DRAFT", createdById: decoded.sub }
+    });
+
+    const res = await request(app)
+      .post(`/api/campaigns/${campaign.id}/approve-leads`)
+      .set(authHeader(token));
+
+    expect(res.status).toBe(409);
+  });
+
+  test("POST /reject-leads deletes leads and sets DRAFT", async () => {
+    const { token } = await createUser({ role: "MANAGER", email: `rl${Date.now()}@x.com` });
+    const decoded = JSON.parse(Buffer.from(token.split(".")[1], "base64").toString());
+    const campaign = await prisma.campaign.create({
+      data: { name: "G", rawGoal: "goal here", extractedFilters: {}, status: "AWAITING_LEAD_APPROVAL", createdById: decoded.sub }
+    });
+    await prisma.lead.create({
+      data: { firstName: "A", lastName: "B", email: "a@x.com", company: "X", campaignId: campaign.id }
+    });
+
+    const res = await request(app)
+      .post(`/api/campaigns/${campaign.id}/reject-leads`)
+      .set(authHeader(token));
+
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+
+    const leads = await prisma.lead.findMany({ where: { campaignId: campaign.id } });
+    expect(leads).toHaveLength(0);
+
+    const updated = await prisma.campaign.findUnique({ where: { id: campaign.id } });
+    expect(updated.status).toBe("DRAFT");
+  });
+
+  test("POST /approve-emails enqueues dispatch and sets RUNNING", async () => {
+    const { token } = await createUser({ role: "MANAGER", email: `ae${Date.now()}@x.com` });
+    const decoded = JSON.parse(Buffer.from(token.split(".")[1], "base64").toString());
+    const campaign = await prisma.campaign.create({
+      data: { name: "G", rawGoal: "goal here", extractedFilters: {}, status: "AWAITING_EMAIL_APPROVAL", createdById: decoded.sub }
+    });
+
+    const res = await request(app)
+      .post(`/api/campaigns/${campaign.id}/approve-emails`)
+      .set(authHeader(token));
+
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+
+    const updated = await prisma.campaign.findUnique({ where: { id: campaign.id } });
+    expect(updated.status).toBe("RUNNING");
+  });
+
+  test("POST /reject-emails deletes leads + emails and sets DRAFT", async () => {
+    const { token } = await createUser({ role: "MANAGER", email: `re${Date.now()}@x.com` });
+    const decoded = JSON.parse(Buffer.from(token.split(".")[1], "base64").toString());
+    const campaign = await prisma.campaign.create({
+      data: { name: "G", rawGoal: "goal here", extractedFilters: {}, status: "AWAITING_EMAIL_APPROVAL", createdById: decoded.sub }
+    });
+    const lead = await prisma.lead.create({
+      data: { firstName: "A", lastName: "B", email: "a@x.com", company: "X", campaignId: campaign.id }
+    });
+    await prisma.email.create({
+      data: { leadId: lead.id, subject: "Hi", body: "Body", version: 1, status: "DRAFT" }
+    });
+
+    const res = await request(app)
+      .post(`/api/campaigns/${campaign.id}/reject-emails`)
+      .set(authHeader(token));
+
+    expect(res.status).toBe(200);
+
+    const emails = await prisma.email.findMany({ where: { leadId: lead.id } });
+    expect(emails).toHaveLength(0);
+
+    const leads = await prisma.lead.findMany({ where: { campaignId: campaign.id } });
+    expect(leads).toHaveLength(0);
+
+    const updated = await prisma.campaign.findUnique({ where: { id: campaign.id } });
+    expect(updated.status).toBe("DRAFT");
   });
 });

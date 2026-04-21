@@ -82,4 +82,57 @@ router.patch("/:id/pause", requireRole("ADMIN", "MANAGER"), async (req, res, nex
   }
 });
 
+router.post("/:id/approve-leads", requireRole("ADMIN", "MANAGER"), async (req, res, next) => {
+  try {
+    const campaign = await prisma.campaign.findUnique({ where: { id: req.params.id } });
+    if (!campaign) return res.status(404).json({ error: "not_found" });
+    if (campaign.status !== "AWAITING_LEAD_APPROVAL") return res.status(409).json({ error: "invalid_status" });
+    const leads = await prisma.lead.findMany({ where: { campaignId: campaign.id, email: { not: null } } });
+    const boss = await getBoss();
+    for (const lead of leads) {
+      await boss.send("generate-email", { leadId: lead.id, autoDispatch: true });
+    }
+    await prisma.campaign.update({ where: { id: campaign.id }, data: { status: "RUNNING" } });
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+router.post("/:id/reject-leads", requireRole("ADMIN", "MANAGER"), async (req, res, next) => {
+  try {
+    const campaign = await prisma.campaign.findUnique({ where: { id: req.params.id } });
+    if (!campaign) return res.status(404).json({ error: "not_found" });
+    if (campaign.status !== "AWAITING_LEAD_APPROVAL") return res.status(409).json({ error: "invalid_status" });
+    await prisma.lead.deleteMany({ where: { campaignId: campaign.id } });
+    await prisma.campaign.update({ where: { id: campaign.id }, data: { status: "DRAFT" } });
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+router.post("/:id/approve-emails", requireRole("ADMIN", "MANAGER"), async (req, res, next) => {
+  try {
+    const campaign = await prisma.campaign.findUnique({ where: { id: req.params.id } });
+    if (!campaign) return res.status(404).json({ error: "not_found" });
+    if (campaign.status !== "AWAITING_EMAIL_APPROVAL") return res.status(409).json({ error: "invalid_status" });
+    if (campaign.instantlyCampaignId) return res.status(409).json({ error: "already_dispatched" });
+    const boss = await getBoss();
+    await boss.send("dispatch-to-instantly", { campaignId: campaign.id });
+    await prisma.campaign.update({ where: { id: campaign.id }, data: { status: "RUNNING" } });
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+router.post("/:id/reject-emails", requireRole("ADMIN", "MANAGER"), async (req, res, next) => {
+  try {
+    const campaign = await prisma.campaign.findUnique({ where: { id: req.params.id } });
+    if (!campaign) return res.status(404).json({ error: "not_found" });
+    if (campaign.status !== "AWAITING_EMAIL_APPROVAL") return res.status(409).json({ error: "invalid_status" });
+    const leads = await prisma.lead.findMany({ where: { campaignId: campaign.id }, select: { id: true } });
+    const leadIds = leads.map(l => l.id);
+    await prisma.email.deleteMany({ where: { leadId: { in: leadIds } } });
+    await prisma.lead.deleteMany({ where: { campaignId: campaign.id } });
+    await prisma.campaign.update({ where: { id: campaign.id }, data: { status: "DRAFT" } });
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
 export default router;
