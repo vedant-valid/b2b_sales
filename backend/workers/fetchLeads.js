@@ -24,11 +24,12 @@ export async function runFetchLeadsJob(job) {
   }
 
   for (const r of results) {
+    const personId = r.lushaContactId ?? `${campaignId}-${r.email}`;
     await prisma.lead.upsert({
-      where: { lushaPersonId: r.lushaContactId || `${campaignId}-${r.email}` },
+      where: { lushaPersonId: personId },
       update: {},
       create: {
-        lushaPersonId: r.lushaContactId,
+        lushaPersonId: personId,
         firstName: r.firstName,
         lastName: r.lastName,
         email: r.email,
@@ -43,10 +44,9 @@ export async function runFetchLeadsJob(job) {
     });
   }
 
-  const leads = await prisma.lead.findMany({ where: { campaignId, email: { not: null } } });
   await prisma.campaign.update({ where: { id: campaignId }, data: { status: "AWAITING_LEAD_APPROVAL" } });
-  logger.info(`fetch-leads: campaign ${campaignId} awaiting lead approval (${leads.length} leads)`);
-  return { leadCount: leads.length };
+  logger.info(`fetch-leads: campaign ${campaignId} awaiting lead approval (${results.length} leads)`);
+  return { leadCount: results.length };
 }
 
 export async function register(boss) {
