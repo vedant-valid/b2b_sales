@@ -1,7 +1,6 @@
 import { prisma } from "../lib/prisma.js";
 import { generateDraft as realGenerateDraft } from "../services/emailGen.js";
 import { logger } from "../lib/logger.js";
-import { getBoss } from "../lib/pgboss.js";
 
 export const QUEUE = "generate-email";
 
@@ -15,7 +14,7 @@ let generateDraft = realGenerateDraft;
 export function __setGenerateDraft(fn) { generateDraft = fn; }
 
 export async function runGenerateEmailJob(job) {
-  const { leadId } = job.data;
+  const { leadId, autoDispatch = false } = job.data;
   const lead = await prisma.lead.findUnique({ where: { id: leadId } });
   if (!lead) throw new Error(`lead ${leadId} not found`);
 
@@ -29,20 +28,20 @@ export async function runGenerateEmailJob(job) {
   });
   logger.info(`generated email v${version} for lead ${leadId}`);
 
-  // Check if all leads in this campaign have at least one draft → enqueue dispatch
-  const pendingLeads = await prisma.lead.count({
-    where: {
-      campaignId: lead.campaignId,
-      email: { not: null },
-      emails: { none: {} }
-    }
-  });
-  if (pendingLeads === 0) {
-    const campaign = await prisma.campaign.findUnique({ where: { id: lead.campaignId } });
-    if (campaign && !campaign.instantlyCampaignId) {
-      const boss = await getBoss();
-      await boss.send("dispatch-to-instantly", { campaignId: lead.campaignId });
-      logger.info(`enqueued dispatch for campaign ${lead.campaignId}`);
+  if (autoDispatch) {
+    const pendingLeads = await prisma.lead.count({
+      where: {
+        campaignId: lead.campaignId,
+        email: { not: null },
+        emails: { none: {} }
+      }
+    });
+    if (pendingLeads === 0) {
+      await prisma.campaign.update({
+        where: { id: lead.campaignId },
+        data: { status: "AWAITING_EMAIL_APPROVAL" }
+      });
+      logger.info(`campaign ${lead.campaignId} awaiting email approval`);
     }
   }
 

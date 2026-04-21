@@ -69,6 +69,30 @@ describe("generateEmail worker", () => {
     expect(capturedOpts).toHaveProperty("brandDoc", null);
   });
 
+  test("sets campaign to AWAITING_EMAIL_APPROVAL when last lead gets its email (autoDispatch)", async () => {
+    const { user } = await createUser({ email: `gate${Date.now()}@x.com` });
+    const campaign = await prisma.campaign.create({
+      data: { name: "X", rawGoal: "g", extractedFilters: {}, createdById: user.id }
+    });
+    // Create two leads, both with emails
+    const lead1 = await prisma.lead.create({
+      data: { firstName: "A", lastName: "B", email: "a@b.com", company: "Acme", campaignId: campaign.id }
+    });
+    const lead2 = await prisma.lead.create({
+      data: { firstName: "C", lastName: "D", email: "c@d.com", company: "Beta", campaignId: campaign.id }
+    });
+
+    // Generate email for lead1 — still one pending, should NOT set approval status
+    await runGenerateEmailJob({ data: { leadId: lead1.id, autoDispatch: true } });
+    let updated = await prisma.campaign.findUnique({ where: { id: campaign.id } });
+    expect(updated.status).toBe("DRAFT");
+
+    // Generate email for lead2 — now zero pending, should set AWAITING_EMAIL_APPROVAL
+    await runGenerateEmailJob({ data: { leadId: lead2.id, autoDispatch: true } });
+    updated = await prisma.campaign.findUnique({ where: { id: campaign.id } });
+    expect(updated.status).toBe("AWAITING_EMAIL_APPROVAL");
+  });
+
   test("bumps version on regeneration", async () => {
     const { user } = await createUser({ email: `u2${Date.now()}${Math.random()}@x.com` });
     const campaign = await prisma.campaign.create({
