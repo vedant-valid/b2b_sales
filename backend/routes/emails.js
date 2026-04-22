@@ -92,7 +92,6 @@ router.post("/emails/:id/send", requireRole("ADMIN", "MANAGER"), async (req, res
       where: { id: email.id },
       data: { status: "SENT", sentAt: new Date() }
     });
-    await prisma.lead.update({ where: { id: email.leadId }, data: { status: "CONTACTED" } });
     res.json({ email: updated });
   } catch (e) { next(e); }
 });

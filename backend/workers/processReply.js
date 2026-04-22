@@ -16,7 +16,10 @@ const SENTIMENT_TO_STATUS = {
 
 export async function runProcessReplyJob(job) {
   const { leadEmail, body, receivedAt } = job.data;
-  const lead = await prisma.lead.findFirst({ where: { email: leadEmail } });
+  // Prefer the most recently-contacted lead; fall back to any lead with this email
+  const lead =
+    (await prisma.lead.findFirst({ where: { email: leadEmail, status: "CONTACTED" }, orderBy: { createdAt: "desc" } })) ||
+    (await prisma.lead.findFirst({ where: { email: leadEmail }, orderBy: { createdAt: "desc" } }));
   if (!lead) { logger.warn(`process-reply: no lead for ${leadEmail}`); return; }
 
   const receivedDate = new Date(receivedAt);

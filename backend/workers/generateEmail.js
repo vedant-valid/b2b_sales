@@ -10,6 +10,13 @@ const DEFAULT_PROFILE = {
   valueProp: "NST students build production-grade systems and are job-ready"
 };
 
+function buildTestDraft(lead) {
+  return {
+    subject: "Campaign Automation Test | Vedant Madne",
+    body: `Hi ${lead.firstName},\n\nThis is a quick test email as part of a campaign automation demo built by Vedant Madne.\n\nWe are validating the end-to-end outreach pipeline — lead enrichment, AI-based email generation, and dispatch via Instantly.ai. No action needed on your end; this is purely to confirm delivery and pipeline functionality.\n\nThanks for being part of the demo!\n\n- Vedant`
+  };
+}
+
 let generateDraft = realGenerateDraft;
 export function __setGenerateDraft(fn) { generateDraft = fn; }
 
@@ -18,8 +25,15 @@ export async function runGenerateEmailJob(job) {
   const lead = await prisma.lead.findUnique({ where: { id: leadId } });
   if (!lead) throw new Error(`lead ${leadId} not found`);
 
-  const brandDoc = await prisma.brandDoc.findUnique({ where: { id: "singleton" } });
-  const draft = await generateDraft(lead, DEFAULT_PROFILE, { brandDoc: brandDoc?.content ?? null });
+  const campaign = await prisma.campaign.findUnique({ where: { id: lead.campaignId } });
+
+  let draft;
+  if (campaign?.mode === "TEST") {
+    draft = buildTestDraft(lead);
+  } else {
+    const brandDoc = await prisma.brandDoc.findUnique({ where: { id: "singleton" } });
+    draft = await generateDraft(lead, DEFAULT_PROFILE, { brandDoc: brandDoc?.content ?? null });
+  }
   const latest = await prisma.email.findFirst({ where: { leadId }, orderBy: { version: "desc" } });
   const version = latest ? latest.version + 1 : 1;
 

@@ -22,6 +22,11 @@ enum CampaignStatus {
   COMPLETED
 }
 
+enum CampaignMode {
+  OUTREACH
+  TEST
+}
+
 enum LeadStatus {
   NEW
   CONTACTED
@@ -67,6 +72,7 @@ model Campaign {
   createdById         String
   leads               Lead[]
   instantlyCampaignId String?
+  mode                CampaignMode   @default(OUTREACH)
   createdAt           DateTime       @default(now())
 }
 

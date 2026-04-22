@@ -17,14 +17,20 @@ router.post("/instantly", async (req, res, next) => {
     if (!secret || secret !== getWebhookSecret()) {
       return res.status(401).json({ error: "unauthorized" });
     }
-    const { event, event_type, lead_email, body, received_at } = req.body || {};
-    const eventName = event_type || event;
+    const payload = req.body || {};
+    const eventName = payload.event_type || payload.event;
+    // Instantly uses lead_email or email
+    const leadEmail = payload.lead_email || payload.email;
+    // Instantly uses reply_text or body
+    const replyBody = payload.reply_text || payload.body;
+    // Instantly uses timestamp or received_at
+    const receivedAt = payload.timestamp || payload.received_at || new Date().toISOString();
 
     if (eventName === "email_sent") {
-      const lead = await prisma.lead.findFirst({ where: { email: lead_email } });
-      if (lead && lead.status === "NEW") {
-        await prisma.lead.update({ where: { id: lead.id }, data: { status: "CONTACTED" } });
-      }
+      await prisma.lead.updateMany({
+        where: { email: leadEmail, status: "NEW" },
+        data: { status: "CONTACTED" }
+      });
       return res.json({ ok: true });
     }
 
@@ -32,9 +38,9 @@ router.post("/instantly", async (req, res, next) => {
 
     const boss = await getBoss();
     const jobId = await boss.send("process-reply", {
-      leadEmail: lead_email,
-      body,
-      receivedAt: received_at
+      leadEmail,
+      body: replyBody,
+      receivedAt
     });
     res.status(202).json({ jobId });
   } catch (e) { next(e); }

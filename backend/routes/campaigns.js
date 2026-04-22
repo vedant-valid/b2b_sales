@@ -15,7 +15,8 @@ router.use(requireAuth);
 
 const createSchema = z.object({
   name: z.string().min(1),
-  rawGoal: z.string().min(5)
+  rawGoal: z.string().min(5),
+  mode: z.enum(["OUTREACH", "TEST"]).default("OUTREACH")
 });
 
 router.post("/", requireRole("ADMIN", "MANAGER"), async (req, res, next) => {
@@ -32,6 +33,7 @@ router.post("/", requireRole("ADMIN", "MANAGER"), async (req, res, next) => {
         name: parsed.data.name,
         rawGoal: parsed.data.rawGoal,
         extractedFilters: extraction.filters,
+        mode: parsed.data.mode,
         createdById: req.user.sub
       }
     });

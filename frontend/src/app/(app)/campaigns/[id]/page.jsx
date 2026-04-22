@@ -77,6 +77,12 @@ export default function CampaignDetailPage({ params }) {
 
   return (
     <div className="space-y-4">
+      {campaign.mode === "TEST" && (
+        <div className="bg-amber-50 border border-amber-300 text-amber-800 text-xs px-3 py-2 rounded flex items-center gap-2">
+          <span className="font-semibold uppercase tracking-wide">Test Campaign</span>
+          <span>— emails use a fixed demo template. Regenerate will also produce demo content, not AI outreach.</span>
+        </div>
+      )}
       {DEV_MODE && (
         <div className="bg-yellow-100 border border-yellow-400 text-yellow-800 text-xs px-3 py-1 rounded font-mono">
           DEV MODE — all outbound emails redirected to madnevedant15@gmail.com
