@@ -59,6 +59,18 @@ export default function CampaignDetailPage({ params }) {
     finally { setActing(false); }
   }
 
+  async function onSyncStatus() {
+    setActing(true);
+    setError("");
+    try {
+      const { updated } = await apiFetch(`/api/campaigns/${id}/sync-lead-status`, {
+        token: session.backendToken, method: "POST"
+      });
+      if (updated > 0) loadLeads();
+    } catch (e) { setError(e.message); }
+    finally { setActing(false); }
+  }
+
   async function onSeedDevLead() {
     setActing(true);
     setError("");
@@ -164,6 +176,16 @@ export default function CampaignDetailPage({ params }) {
       <div>
         <div className="flex justify-between items-center mb-2">
           <h2 className="font-semibold">Leads ({leads.length})</h2>
+          <div className="flex gap-2 items-center">
+          {campaign.status === "RUNNING" && !isViewer && (
+            <button
+              onClick={onSyncStatus}
+              disabled={acting}
+              className="text-xs border border-gray-400 text-gray-700 bg-white px-2 py-1 rounded disabled:opacity-50"
+            >
+              Sync Status
+            </button>
+          )}
           {DEV_MODE && !isViewer && (
             <button
               onClick={onSeedDevLead}
@@ -173,6 +195,7 @@ export default function CampaignDetailPage({ params }) {
               + Add test lead (dev)
             </button>
           )}
+          </div>
         </div>
         {leads.length === 0 ? (
           <p className="text-sm text-gray-500">No leads yet.</p>

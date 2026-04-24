@@ -10,6 +10,7 @@ export default function CampaignWizard() {
   const [name, setName] = useState("");
   const [rawGoal, setRawGoal] = useState("");
   const [mode, setMode] = useState("OUTREACH");
+  const [testEmailsRaw, setTestEmailsRaw] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [clarification, setClarification] = useState("");
@@ -18,10 +19,23 @@ export default function CampaignWizard() {
     e.preventDefault();
     setLoading(true); setError(""); setClarification("");
     try {
+      const body = { name, rawGoal, mode };
+      if (mode === "TEST") {
+        const testEmails = testEmailsRaw
+          .split(/[\n,]+/)
+          .map((s) => s.trim())
+          .filter((s) => s.includes("@"));
+        if (testEmails.length === 0) {
+          setError("Add at least one valid email address for the demo.");
+          setLoading(false);
+          return;
+        }
+        body.testEmails = testEmails;
+      }
       const { campaign } = await apiFetch("/api/campaigns", {
         token: session.backendToken,
         method: "POST",
-        body: { name, rawGoal, mode }
+        body
       });
       router.push(`/campaigns/${campaign.id}`);
     } catch (e) {
@@ -55,7 +69,7 @@ export default function CampaignWizard() {
 
       {mode === "TEST" && (
         <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
-          Test mode — emails use a fixed demo template (no AI generation). Use for pipeline validation only.
+          Test mode — uses a fixed demo email template. Leads are taken from the emails you enter below, no Lusha fetch.
         </p>
       )}
 
@@ -67,16 +81,33 @@ export default function CampaignWizard() {
         required
       />
       <textarea
-        className="w-full border p-2 rounded h-32"
-        placeholder={mode === "TEST" ? "Describe the test purpose (used for reference only)" : "Describe your outreach goal in natural language"}
+        className="w-full border p-2 rounded h-24"
+        placeholder={mode === "TEST" ? "Describe the test purpose (for reference only)" : "Describe your outreach goal in natural language"}
         value={rawGoal}
         onChange={(e) => setRawGoal(e.target.value)}
         required
       />
+
+      {mode === "TEST" && (
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Demo email addresses
+          </label>
+          <textarea
+            className="w-full border p-2 rounded h-32 font-mono text-sm"
+            placeholder={"vedant@example.com\nshweta@nstx.co.in\nkritika@newtonschool.co"}
+            value={testEmailsRaw}
+            onChange={(e) => setTestEmailsRaw(e.target.value)}
+            required
+          />
+          <p className="text-xs text-gray-400 mt-1">One email per line (or comma-separated). These become the leads for this demo campaign.</p>
+        </div>
+      )}
+
       {clarification && <p className="text-amber-700 text-sm">{clarification}</p>}
       {error && <p className="text-red-600 text-sm">{error}</p>}
       <button disabled={loading} className="bg-black text-white px-4 py-2 rounded">
-        {loading ? "Analyzing..." : "Create campaign"}
+        {loading ? (mode === "TEST" ? "Creating..." : "Analyzing...") : "Create campaign"}
       </button>
     </form>
   );

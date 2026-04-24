@@ -15,7 +15,10 @@ router.get("/", async (req, res, next) => {
     if (status) where.status = status;
     const leads = await prisma.lead.findMany({
       where,
-      include: { _count: { select: { emails: true, replies: true } } },
+      include: {
+        _count: { select: { emails: true, replies: true } },
+        campaign: { select: { mode: true } }
+      },
       orderBy: { createdAt: "desc" },
       take: 500
     });

@@ -25,22 +25,21 @@ async function req(path, method, body, { fetch: fetchFn = globalThis.fetch } = {
 }
 
 export async function createCampaign(name, opts = {}) {
+  const { mode, fetch: fetchFn, ...restOpts } = opts;
   const sendingAccounts = env.INSTANTLY_SENDING_ACCOUNTS
     ? env.INSTANTLY_SENDING_ACCOUNTS.split(",").map(s => s.trim()).filter(Boolean)
     : undefined;
+
+  // TEST campaigns use a 24/7 schedule so demo emails go out immediately
+  const schedule = mode === "TEST"
+    ? { name: "Default", timing: { from: "00:00", to: "23:59" }, days: { 0: true, 1: true, 2: true, 3: true, 4: true, 5: true, 6: true }, timezone: "Asia/Kolkata" }
+    : { name: "Default", timing: { from: "09:00", to: "18:00" }, days: { 0: false, 1: true, 2: true, 3: true, 4: true, 5: true, 6: false }, timezone: "Asia/Kolkata" };
 
   const json = await req("/api/v2/campaigns", "POST", {
     name,
     allow_risky_contacts: true,
     ...(sendingAccounts?.length && { email_list: sendingAccounts }),
-    campaign_schedule: {
-      schedules: [{
-        name: "Default",
-        timing: { from: "09:00", to: "18:00" },
-        days: { 0: false, 1: true, 2: true, 3: true, 4: true, 5: true, 6: false },
-        timezone: "Asia/Kolkata"
-      }]
-    },
+    campaign_schedule: { schedules: [schedule] },
     sequences: [{
       steps: [{
         type: "email",
@@ -49,7 +48,7 @@ export async function createCampaign(name, opts = {}) {
         variants: [{ subject: "{{outreach_subject}}", body: "{{personalization}}" }]
       }]
     }]
-  }, opts);
+  }, { fetch: fetchFn });
   const instantlyCampaignId = json.id;
 
   return { instantlyCampaignId };
@@ -90,4 +89,19 @@ export async function sendSubsequence(instantlyCampaignId, leadEmail, body, opts
     lead_email: leadEmail,
     body
   }, opts);
+}
+
+export async function getRecentReplies(instantlyCampaignId, sinceDate, opts = {}) {
+  const params = new URLSearchParams({
+    campaign_id: instantlyCampaignId,
+    type: "REPLY",
+    limit: "100"
+  });
+  const data = await req(`/api/v2/emails?${params}`, "GET", null, opts);
+  const items = data?.items ?? data ?? [];
+  const since = new Date(sinceDate).getTime();
+  return items.filter((m) => {
+    const t = new Date(m.created_at ?? m.timestamp ?? m.receivedAt ?? 0).getTime();
+    return t >= since;
+  });
 }

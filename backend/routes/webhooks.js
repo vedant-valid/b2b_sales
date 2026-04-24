@@ -13,9 +13,12 @@ const router = Router();
 
 router.post("/instantly", async (req, res, next) => {
   try {
-    const secret = req.headers["x-webhook-secret"];
-    if (!secret || secret !== getWebhookSecret()) {
-      return res.status(401).json({ error: "unauthorized" });
+    const configuredSecret = getWebhookSecret();
+    if (configuredSecret) {
+      const secret = req.headers["x-webhook-secret"];
+      if (!secret || secret !== configuredSecret) {
+        return res.status(401).json({ error: "unauthorized" });
+      }
     }
     const payload = req.body || {};
     const eventName = payload.event_type || payload.event;
