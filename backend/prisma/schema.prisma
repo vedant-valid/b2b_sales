@@ -82,6 +82,7 @@ model Lead {
   firstName     String
   lastName      String
   email         String?
+  phone         String?
   title         String?
   company       String?
   location      String?

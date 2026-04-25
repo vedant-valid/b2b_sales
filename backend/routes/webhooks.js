@@ -22,12 +22,12 @@ router.post("/instantly", async (req, res, next) => {
     }
     const payload = req.body || {};
     const eventName = payload.event_type || payload.event;
-    // Instantly uses lead_email or email
-    const leadEmail = payload.lead_email || payload.email;
-    // Instantly uses reply_text or body
-    const replyBody = payload.reply_text || payload.body;
-    // Instantly uses timestamp or received_at
-    const receivedAt = payload.timestamp || payload.received_at || new Date().toISOString();
+    // Instantly v1/v2: lead_email, email, or nested lead.email
+    const leadEmail = payload.lead_email || payload.email || payload.lead?.email;
+    // Instantly v1/v2: reply_text, body, or nested reply.text
+    const replyBody = payload.reply_text || payload.reply?.text || payload.body;
+    // Instantly: timestamp, received_at, or nested reply.received_at
+    const receivedAt = payload.timestamp || payload.received_at || payload.reply?.received_at || new Date().toISOString();
 
     if (eventName === "email_sent") {
       await prisma.lead.updateMany({

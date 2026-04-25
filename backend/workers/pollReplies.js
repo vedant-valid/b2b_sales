@@ -27,15 +27,22 @@ export async function runPollRepliesJob(job, boss) {
   }
 
   let total = 0;
+  // Deduplicate across campaigns: same person may be a lead in multiple campaigns
+  // and would otherwise generate one reply record per campaign in the DB.
+  const seen = new Set();
   for (const campaign of campaigns) {
     try {
       const replies = await getRecentReplies(campaign.instantlyCampaignId, sinceDate);
       for (const reply of replies) {
-        const leadEmail = reply.lead_email ?? reply.email ?? reply.from_email;
-        const body      = reply.body ?? reply.text ?? reply.content ?? "";
-        const receivedAt = reply.created_at ?? reply.timestamp ?? new Date().toISOString();
+        const leadEmail  = reply.lead ?? reply.lead_email ?? reply.from_address_email;
+        const body       = reply.body?.text ?? reply.body ?? "";
+        const receivedAt = reply.timestamp_created ?? reply.created_at ?? new Date().toISOString();
 
         if (!leadEmail || !body) continue;
+
+        const key = `${leadEmail}:${receivedAt}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
 
         await boss.send("process-reply", { leadEmail, body, receivedAt });
         total++;

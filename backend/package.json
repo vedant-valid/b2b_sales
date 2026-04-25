@@ -15,23 +15,24 @@
     "seed": "node prisma/seed.js"
   },
   "dependencies": {
-    "express": "^4.19.2",
-    "cors": "^2.8.5",
-    "helmet": "^7.1.0",
-    "morgan": "^1.10.0",
-    "dotenv": "^16.4.5",
+    "@google/generative-ai": "^0.17.1",
     "@prisma/client": "^5.18.0",
-    "pg-boss": "^9.0.3",
     "bcryptjs": "^2.4.3",
-    "jsonwebtoken": "^9.0.2",
-    "zod": "^3.23.8",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
     "exceljs": "^4.4.0",
-    "@google/generative-ai": "^0.17.1"
+    "express": "^4.19.2",
+    "helmet": "^7.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "morgan": "^1.10.0",
+    "nodemailer": "^7.0.13",
+    "pg-boss": "^9.0.3",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "jest": "^29.7.0",
-    "supertest": "^7.0.0",
+    "nock": "^13.5.4",
     "prisma": "^5.18.0",
-    "nock": "^13.5.4"
+    "supertest": "^7.0.0"
   }
 }

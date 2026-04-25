@@ -69,8 +69,8 @@ export async function generateLeadsXlsx(filters = {}) {
     "First Name", "Last Name", "Email",
     "Company Name", "Status", "Campaign Name",
     "Step", "Reply", "Job Title",
-    "Lead Age (Days)", "Action", "Follow-Up Draft",
-    "Seniority", "City"
+    "Lead Age (In Days)", "Action", "Follow-Up Draft",
+    "LinkedIn URL", "Phone Number", "Seniority", "City"
   ];
 
   ws.columns = [
@@ -79,7 +79,7 @@ export async function generateLeadsXlsx(filters = {}) {
     { width: 22 }, { width: 18 }, { width: 30 },
     { width: 8  }, { width: 50 }, { width: 28 },
     { width: 16 }, { width: 18 }, { width: 40 },
-    { width: 14 }, { width: 16 }
+    { width: 36 }, { width: 18 }, { width: 14 }, { width: 16 }
   ];
 
   const headerRow = ws.addRow(HEADERS);
@@ -112,6 +112,8 @@ export async function generateLeadsXlsx(filters = {}) {
       daysSince(l.createdAt),
       ACTION_LABEL[sentiment] || "",
       l.replies[0]?.draftFollowUp || "",
+      l.linkedinUrl || "",
+      l.phone || "",
       l.seniority || "",
       l.location || ""
     ]);

@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { apiFetch } from "@/lib/api";
 import ReplyCard from "@/components/ReplyCard";
+import { useCallback } from "react";
 
 const GROUPS = [
   {
@@ -42,17 +43,32 @@ const GROUPS = [
 export default function RepliesPage() {
   const { data: session } = useSession();
   const [replies, setReplies] = useState([]);
+  const [syncing, setSyncing] = useState(false);
 
-  async function load() {
+  const load = useCallback(async () => {
     if (!session?.backendToken) return;
     const { replies } = await apiFetch("/api/replies", { token: session.backendToken });
     setReplies(replies);
+  }, [session?.backendToken]);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function syncReplies() {
+    setSyncing(true);
+    try {
+      await apiFetch("/api/jobs/poll-replies", { token: session.backendToken, method: "POST" });
+      await load();
+    } finally { setSyncing(false); }
   }
-  useEffect(() => { load(); }, [session?.backendToken]);
 
   return (
     <div className="space-y-8">
-      <h1 className="text-xl font-bold">Replies</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-bold">Replies</h1>
+        <button onClick={syncReplies} disabled={syncing} className="text-sm px-3 py-1.5 border rounded hover:bg-gray-50 disabled:opacity-50">
+          {syncing ? "Syncing…" : "Sync replies"}
+        </button>
+      </div>
       {GROUPS.map((group) => {
         const grouped = replies.filter((r) => group.sentiments.includes(r.sentiment));
         return (
@@ -65,7 +81,7 @@ export default function RepliesPage() {
             {grouped.length === 0
               ? <p className="text-sm text-gray-400 pl-1">None.</p>
               : <div className={`space-y-3 border rounded-lg p-4 ${group.style}`}>
-                  {grouped.map((r) => <ReplyCard key={r.id} reply={r} onApproved={load} />)}
+                  {grouped.map((r) => <ReplyCard key={r.id} reply={r} onApproved={(id) => setReplies(prev => prev.filter(r => r.id !== id))} />)}
                 </div>
             }
           </section>

@@ -1,9 +1,19 @@
 import { Router } from "express";
 import { requireAuth } from "../middleware/auth.js";
+import { requireRole } from "../middleware/rbac.js";
 import { getBoss } from "../lib/pgboss.js";
+import { runPollRepliesJob } from "../workers/pollReplies.js";
 
 const router = Router();
 router.use(requireAuth);
+
+router.post("/poll-replies", requireRole("ADMIN", "MANAGER"), async (req, res, next) => {
+  try {
+    const boss = await getBoss();
+    await runPollRepliesJob({}, boss);
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
 
 router.get("/:id", async (req, res, next) => {
   try {

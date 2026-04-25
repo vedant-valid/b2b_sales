@@ -14,7 +14,9 @@ const schema = z.object({
   INSTANTLY_SENDING_ACCOUNTS: z.string().optional(),
   FRONTEND_URL: z.string().default("http://localhost:3000"),
   DEV_MODE: z.string().optional(),
-  DEV_EMAIL: z.string().optional()
+  DEV_EMAIL: z.string().optional(),
+  GMAIL_ADDRESS: z.string().optional(),
+  GMAIL_APP_PASSWORD: z.string().optional()
 });
 
 export const env = schema.parse(process.env);

@@ -33,6 +33,7 @@ export async function runFetchLeadsJob(job) {
         firstName: r.firstName,
         lastName: r.lastName,
         email: r.email,
+        phone: r.phone,
         title: r.title,
         company: r.company,
         location: r.location,

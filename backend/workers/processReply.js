@@ -7,6 +7,24 @@ export const QUEUE = "process-reply";
 let replyHandler = { classifySentiment: realClassify, draftFollowUp: realDraftFollowUp };
 export function __setReplyHandlerImpl(impl) { replyHandler = impl; }
 
+// Strip the quoted original email that most clients append below the reply.
+// Stops at the first line that looks like a quote header or quote marker.
+function stripEmailQuotes(text) {
+  if (!text) return text;
+  const lines = text.split("\n");
+  const result = [];
+  for (const line of lines) {
+    const t = line.trim();
+    if (/^>/.test(t)) break;
+    if (/^On .+wrote:/.test(t)) break;
+    if (/^-{3,}/.test(t)) break;
+    if (/^_{3,}/.test(t)) break;
+    if (/^From:\s/i.test(t)) break;
+    result.push(line);
+  }
+  return result.join("\n").trim();
+}
+
 const SENTIMENT_TO_STATUS = {
   INTERESTED: "INTERESTED",
   NOT_INTERESTED: "NOT_INTERESTED",
@@ -15,7 +33,8 @@ const SENTIMENT_TO_STATUS = {
 };
 
 export async function runProcessReplyJob(job) {
-  const { leadEmail, body, receivedAt } = job.data;
+  const { leadEmail, receivedAt } = job.data;
+  const body = stripEmailQuotes(job.data.body);
   // Prefer the most recently-contacted lead; fall back to any lead with this email
   const lead =
     (await prisma.lead.findFirst({ where: { email: leadEmail, status: "CONTACTED" }, orderBy: { createdAt: "desc" } })) ||
