@@ -21,7 +21,7 @@ export async function sendFollowUp({ to, subject, body }) {
   let info;
   try {
     info = await transporter.sendMail({
-      from: `Outreach <${env.GMAIL_ADDRESS}>`,
+      from: `${env.GMAIL_FROM_NAME || "Outreach"} <${env.GMAIL_ADDRESS}>`,
       to,
       subject,
       text: body,

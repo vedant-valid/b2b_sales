@@ -16,7 +16,8 @@ const schema = z.object({
   DEV_MODE: z.string().optional(),
   DEV_EMAIL: z.string().optional(),
   GMAIL_ADDRESS: z.string().optional(),
-  GMAIL_APP_PASSWORD: z.string().optional()
+  GMAIL_APP_PASSWORD: z.string().optional(),
+  GMAIL_FROM_NAME: z.string().optional()
 });
 
 export const env = schema.parse(process.env);
