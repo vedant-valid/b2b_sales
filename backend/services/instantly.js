@@ -20,7 +20,7 @@ async function req(path, method, body, { fetch: fetchFn = globalThis.fetch } = {
   if (!res.ok) {
     let detail = "";
     try { detail = JSON.stringify(await res.json()); } catch { /* ignore */ }
-    const msg = `Instantly API error ${res.status} on ${method} ${path}: ${detail}`;
+    const msg = `instantly API error ${res.status} on ${method} ${path}: ${detail}`;
     throw new HttpError(res.status >= 500 ? 502 : res.status, "instantly_error", msg);
   }
   return res.json();
@@ -93,6 +93,18 @@ export async function lookupInstantlyLeadId(instantlyCampaignId, email, opts = {
   const lead = data?.items?.[0];
   if (!lead) throw new HttpError(404, "instantly_lead_not_found", `Lead ${lookupEmail} not found in Instantly campaign ${instantlyCampaignId}`);
   return lead.id;
+}
+
+export async function sendSubsequence(instantlyCampaignId, email, body, opts = {}) {
+  const schedule = { name: "Default", timing: { from: "00:00", to: "23:59" }, days: { 0: true, 1: true, 2: true, 3: true, 4: true, 5: true, 6: true }, timezone: "Asia/Kolkata" };
+  await req("/api/v2/subsequences", "POST", {
+    parent_campaign: instantlyCampaignId,
+    lead_email: email,
+    name: `Follow-up ${new Date().toISOString()}`,
+    conditions: { crm_status: [], lead_activity: [], reply_contains: "" },
+    subsequence_schedule: { start_date: null, end_date: null, schedules: [schedule] },
+    sequences: [{ steps: [{ type: "email", delay: 0, delay_unit: "minutes", pre_delay: 0, pre_delay_unit: "minutes", variants: [{ subject: "Re:", body }] }] }]
+  }, opts);
 }
 
 export async function createFollowUpSubsequence(instantlyCampaignId, subject, body, opts = {}) {

@@ -4,6 +4,7 @@ import { useSession } from "next-auth/react";
 import { apiFetch } from "@/lib/api";
 import FilterPreview from "@/components/FilterPreview";
 import JobProgressBar from "@/components/JobProgressBar";
+import LeadApprovalTable from "@/components/LeadApprovalTable";
 import Link from "next/link";
 
 const DEV_MODE = process.env.NEXT_PUBLIC_DEV_MODE === "true";
@@ -16,6 +17,8 @@ export default function CampaignDetailPage({ params }) {
   const [jobId, setJobId] = useState(null);
   const [error, setError] = useState("");
   const [acting, setActing] = useState(false);
+  const [skippedIds, setSkippedIds] = useState(new Set());
+  const [rowError, setRowError] = useState({});
 
   const loadCampaign = useCallback(() => {
     if (!session?.backendToken) return;
@@ -50,13 +53,25 @@ export default function CampaignDetailPage({ params }) {
     setActing(true);
     setError("");
     try {
+      const body = gate === "approve-leads"
+        ? { approvedIds: leads.filter(l => !skippedIds.has(l.id)).map(l => l.id) }
+        : undefined;
       await apiFetch(`/api/campaigns/${id}/${gate}`, {
-        token: session.backendToken, method: "POST"
+        token: session.backendToken, method: "POST", body
       });
+      setSkippedIds(new Set());
       loadCampaign();
       loadLeads();
     } catch (e) { setError(e.message); }
     finally { setActing(false); }
+  }
+
+  function onSkip(leadId) {
+    setSkippedIds(prev => new Set([...prev, leadId]));
+  }
+
+  function onUndoSkip(leadId) {
+    setSkippedIds(prev => { const n = new Set(prev); n.delete(leadId); return n; });
   }
 
   async function onSyncStatus() {
@@ -114,24 +129,33 @@ export default function CampaignDetailPage({ params }) {
       </div>
 
       {campaign.status === "AWAITING_LEAD_APPROVAL" && !isViewer && (
-        <div className="border border-yellow-400 bg-yellow-50 rounded p-4 space-y-2">
+        <div className="border border-yellow-400 bg-yellow-50 rounded p-4 space-y-3">
           <p className="font-semibold text-yellow-800">
-            {campaign._count?.leads ?? 0} leads fetched — review below then approve or reject.
+            {campaign._count?.leads ?? 0} leads fetched — skip any below, then approve the rest or reject all.
           </p>
-          <div className="flex gap-2">
+          {leads.length > 0 && (
+            <LeadApprovalTable
+              leads={leads}
+              skippedIds={skippedIds}
+              onSkip={onSkip}
+              onUndoSkip={onUndoSkip}
+              rowError={rowError}
+            />
+          )}
+          <div className="flex gap-2 items-center pt-1">
             <button
               onClick={() => onAction("approve-leads")}
               disabled={acting}
               className="bg-green-600 text-white px-4 py-2 rounded text-sm disabled:opacity-50"
             >
-              Approve — generate emails
+              Approve {leads.length - skippedIds.size} leads — generate emails
             </button>
             <button
               onClick={() => onAction("reject-leads")}
               disabled={acting}
               className="bg-red-600 text-white px-4 py-2 rounded text-sm disabled:opacity-50"
             >
-              Reject — discard &amp; reset
+              Reject all — discard &amp; reset
             </button>
           </div>
         </div>

@@ -26,13 +26,14 @@ function ReasoningCell({ bullets }) {
     <div>
       <button
         onClick={() => setOpen(o => !o)}
+        aria-expanded={open}
         className="text-xs text-blue-600 underline"
       >
         {open ? "▲ Hide" : "▼ Show"}
       </button>
       {open && (
         <ul className="mt-1 text-xs text-gray-700 list-disc list-inside space-y-0.5">
-          {bullets.map((b, i) => <li key={i}>{b}</li>)}
+          {bullets.map((b, i) => <li key={`${i}-${b}`}>{b}</li>)}
         </ul>
       )}
     </div>
@@ -74,6 +75,7 @@ export default function LeadApprovalTable({ leads, skippedIds, onSkip, onUndoSki
                   {skipped ? (
                     <button
                       onClick={() => onUndoSkip(l.id)}
+                      aria-label={`Undo skip for ${l.firstName} ${l.lastName}`}
                       className="text-xs text-blue-600 underline"
                     >
                       Undo
@@ -81,6 +83,7 @@ export default function LeadApprovalTable({ leads, skippedIds, onSkip, onUndoSki
                   ) : (
                     <button
                       onClick={() => onSkip(l.id)}
+                      aria-label={`Skip ${l.firstName} ${l.lastName}`}
                       className="text-xs text-red-600 underline"
                     >
                       Skip
