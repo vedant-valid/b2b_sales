@@ -3,10 +3,11 @@ import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/auth.js";
 import { requireRole } from "../middleware/rbac.js";
 import { getBoss } from "../lib/pgboss.js";
-import { pushLeads as realPushLeads, activateCampaign as realActivateCampaign } from "../services/instantly.js";
+import { createCampaign as realCreateCampaign, pushLeads as realPushLeads, activateCampaign as realActivateCampaign } from "../services/instantly.js";
 
-let instantly = { pushLeads: realPushLeads, activateCampaign: realActivateCampaign };
+let instantly = null; // injected by server.js; null = skip Instantly (tests)
 export function __setInstantlyImpl(impl) { instantly = impl; }
+export const realInstantly = { createCampaign: realCreateCampaign, pushLeads: realPushLeads, activateCampaign: realActivateCampaign };
 
 const router = Router();
 router.use(requireAuth);
@@ -48,10 +49,22 @@ router.post("/emails/:id/send", requireRole("ADMIN", "MANAGER"), async (req, res
     if (!email) return res.status(404).json({ error: "not_found" });
     if (!email.lead.email) return res.status(400).json({ error: "lead_has_no_email" });
 
-    const campaign = await prisma.campaign.findUnique({ where: { id: email.lead.campaignId } });
-    if (campaign?.instantlyCampaignId && instantly) {
+    if (instantly) {
+      const campaign = await prisma.campaign.findUnique({ where: { id: email.lead.campaignId } });
+      if (!campaign) return res.status(400).json({ error: "campaign_not_found" });
+
+      let instantlyCampaignId = campaign.instantlyCampaignId;
       try {
-        const result = await instantly.pushLeads(campaign.instantlyCampaignId, [{
+        if (!instantlyCampaignId) {
+          const out = await instantly.createCampaign(campaign.name);
+          instantlyCampaignId = out.instantlyCampaignId;
+          await prisma.campaign.update({
+            where: { id: campaign.id },
+            data: { instantlyCampaignId, status: "RUNNING" }
+          });
+        }
+
+        const result = await instantly.pushLeads(instantlyCampaignId, [{
           email: email.lead.email,
           firstName: email.lead.firstName,
           lastName: email.lead.lastName,
@@ -62,7 +75,7 @@ router.post("/emails/:id/send", requireRole("ADMIN", "MANAGER"), async (req, res
           _emailId: email.id
         }]);
 
-        await instantly.activateCampaign(campaign.instantlyCampaignId);
+        await instantly.activateCampaign(instantlyCampaignId);
 
         const rejected = new Set((result.rejected || []).map((r) => r.email));
         if (rejected.has(email.lead.email)) {
