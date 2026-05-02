@@ -155,18 +155,42 @@ router.patch("/:id/pause", requireRole("ADMIN", "MANAGER"), async (req, res, nex
   }
 });
 
+const approveLeadsSchema = z.object({
+  approvedIds: z.array(z.string()).optional()
+});
+
 router.post("/:id/approve-leads", requireRole("ADMIN", "MANAGER"), async (req, res, next) => {
   try {
     const campaign = await prisma.campaign.findUnique({ where: { id: req.params.id } });
     if (!campaign) return res.status(404).json({ error: "not_found" });
     if (campaign.status !== "AWAITING_LEAD_APPROVAL") return res.status(409).json({ error: "invalid_status" });
-    const leads = await prisma.lead.findMany({ where: { campaignId: campaign.id, email: { not: null } } });
-    if (leads.length === 0) {
+
+    const parsed = approveLeadsSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: "invalid_input" });
+    const { approvedIds } = parsed.data;
+
+    const allLeads = await prisma.lead.findMany({
+      where: { campaignId: campaign.id, email: { not: null } }
+    });
+
+    let leadsToProcess;
+    if (approvedIds !== undefined) {
+      const toSkip = allLeads.filter(l => !approvedIds.includes(l.id)).map(l => l.id);
+      if (toSkip.length > 0) {
+        await prisma.lead.updateMany({ where: { id: { in: toSkip } }, data: { status: "SKIPPED" } });
+      }
+      leadsToProcess = allLeads.filter(l => approvedIds.includes(l.id) && l.status !== "SKIPPED");
+    } else {
+      leadsToProcess = allLeads.filter(l => l.status !== "SKIPPED");
+    }
+
+    if (leadsToProcess.length === 0) {
       await prisma.campaign.update({ where: { id: campaign.id }, data: { status: "DRAFT" } });
       return res.status(409).json({ error: "no_leads_with_email" });
     }
+
     const boss = await getBoss();
-    for (const lead of leads) {
+    for (const lead of leadsToProcess) {
       await boss.send("generate-email", { leadId: lead.id, autoDispatch: true });
     }
     await prisma.campaign.update({ where: { id: campaign.id }, data: { status: "RUNNING" } });

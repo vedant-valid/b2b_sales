@@ -249,4 +249,77 @@ describe("approval gates", () => {
       .set(authHeader(token));
     expect(res.status).toBe(409);
   });
+
+  test("POST /approve-leads with approvedIds only enqueues approved leads", async () => {
+    const { user, token } = await createUser({ role: "MANAGER", email: `alidx${Date.now()}@x.com` });
+    const campaign = await prisma.campaign.create({
+      data: { name: "G", rawGoal: "goal", extractedFilters: {}, status: "AWAITING_LEAD_APPROVAL", createdById: user.id }
+    });
+    const [lead1, lead2] = await Promise.all([
+      prisma.lead.create({ data: { firstName: "A", lastName: "B", email: "a@x.com", company: "X", campaignId: campaign.id } }),
+      prisma.lead.create({ data: { firstName: "C", lastName: "D", email: "c@x.com", company: "Y", campaignId: campaign.id } })
+    ]);
+
+    const res = await request(app)
+      .post(`/api/campaigns/${campaign.id}/approve-leads`)
+      .set(authHeader(token))
+      .send({ approvedIds: [lead1.id] });
+
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+
+    const skipped = await prisma.lead.findUnique({ where: { id: lead2.id } });
+    expect(skipped.status).toBe("SKIPPED");
+
+    const approved = await prisma.lead.findUnique({ where: { id: lead1.id } });
+    expect(approved.status).toBe("NEW");
+
+    const updated = await prisma.campaign.findUnique({ where: { id: campaign.id } });
+    expect(updated.status).toBe("RUNNING");
+  });
+
+  test("POST /approve-leads returns 409 when all leads are skipped via approvedIds", async () => {
+    const { user, token } = await createUser({ role: "MANAGER", email: `alskip${Date.now()}@x.com` });
+    const campaign = await prisma.campaign.create({
+      data: { name: "G", rawGoal: "goal", extractedFilters: {}, status: "AWAITING_LEAD_APPROVAL", createdById: user.id }
+    });
+    await prisma.lead.create({
+      data: { firstName: "A", lastName: "B", email: "a@x.com", company: "X", campaignId: campaign.id }
+    });
+
+    const res = await request(app)
+      .post(`/api/campaigns/${campaign.id}/approve-leads`)
+      .set(authHeader(token))
+      .send({ approvedIds: [] });
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe("no_leads_with_email");
+  });
+
+  test("POST /approve-leads with approvedIds skips pre-SKIPPED leads even if included", async () => {
+    const { user, token } = await createUser({ role: "MANAGER", email: `alskip2${Date.now()}@x.com` });
+    const campaign = await prisma.campaign.create({
+      data: { name: "G", rawGoal: "goal", extractedFilters: {}, status: "AWAITING_LEAD_APPROVAL", createdById: user.id }
+    });
+    const [lead1, lead2] = await Promise.all([
+      prisma.lead.create({ data: { firstName: "A", lastName: "B", email: "a@x.com", company: "X", campaignId: campaign.id } }),
+      prisma.lead.create({ data: { firstName: "C", lastName: "D", email: "c@x.com", company: "Y", campaignId: campaign.id, status: "SKIPPED" } })
+    ]);
+
+    // Pass both IDs — lead2 is already SKIPPED and should not be re-enqueued
+    const res = await request(app)
+      .post(`/api/campaigns/${campaign.id}/approve-leads`)
+      .set(authHeader(token))
+      .send({ approvedIds: [lead1.id, lead2.id] });
+
+    expect(res.status).toBe(200);
+
+    // lead2 should still be SKIPPED (not re-activated)
+    const skipped = await prisma.lead.findUnique({ where: { id: lead2.id } });
+    expect(skipped.status).toBe("SKIPPED");
+
+    // Campaign should be RUNNING (lead1 was processed)
+    const updated = await prisma.campaign.findUnique({ where: { id: campaign.id } });
+    expect(updated.status).toBe("RUNNING");
+  });
 });
