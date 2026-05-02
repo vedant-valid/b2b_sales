@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { authOptions } from "@/lib/auth";
 import LogoutButton from "@/components/LogoutButton";
+import AuthWatcher from "@/components/AuthWatcher";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard" },
@@ -34,7 +35,10 @@ export default async function AppLayout({ children }) {
             </Link>
           ))}
         </nav>
-        <main className="flex-1 p-6">{children}</main>
+        <main className="flex-1 p-6">
+          <AuthWatcher />
+          {children}
+        </main>
       </div>
     </div>
   );

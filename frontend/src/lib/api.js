@@ -9,6 +9,11 @@ export async function apiFetch(path, { token, method = "GET", body } = {}) {
     body: body ? JSON.stringify(body) : undefined
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw Object.assign(new Error(data.error || "request_failed"), { status: res.status, data });
+  if (!res.ok) {
+    if (typeof window !== "undefined" && res.status === 401) {
+      window.dispatchEvent(new CustomEvent("auth:unauthorized"));
+    }
+    throw Object.assign(new Error(data.error || "request_failed"), { status: res.status, data });
+  }
   return data;
 }

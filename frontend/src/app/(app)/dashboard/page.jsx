@@ -18,7 +18,7 @@ export default function DashboardPage() {
       campaigns: c.campaigns.length,
       leads: l.leads.length,
       replies: r.replies.length
-    }));
+    })).catch(() => {});
   }, [session?.backendToken]);
 
   return (
