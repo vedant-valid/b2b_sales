@@ -34,6 +34,11 @@ enum CampaignMode {
   TEST
 }
 
+enum EmailMode {
+  AI
+  TEMPLATE
+}
+
 enum LeadStatus {
   NEW
   CONTACTED
@@ -83,6 +88,9 @@ model Campaign {
   leadSelections      LeadSelection[]
   instantlyCampaignId String?
   mode                CampaignMode    @default(OUTREACH)
+  emailMode           EmailMode       @default(AI)
+  emailTemplateSubject String?
+  emailTemplateBody   String?
   createdAt           DateTime        @default(now())
 }
 
