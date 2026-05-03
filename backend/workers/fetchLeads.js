@@ -1,11 +1,11 @@
 import { prisma } from "../lib/prisma.js";
-import { searchLeads as realSearchLeads } from "../services/lusha.js";
+import { searchLeadsBasic as realSearchLeadsBasic } from "../services/lusha.js";
 import { scoreLeads as realScoreLeads } from "../services/leadScoring.js";
 import { logger } from "../lib/logger.js";
 
 export const QUEUE = "fetch-leads";
 
-let lusha = { searchLeads: realSearchLeads };
+let lusha = { searchLeadsBasic: realSearchLeadsBasic };
 export function __setLushaImpl(impl) { lusha = impl; }
 
 let scorer = { scoreLeads: realScoreLeads };
@@ -18,8 +18,8 @@ export async function runFetchLeadsJob(job) {
 
   await prisma.campaign.update({ where: { id: campaignId }, data: { status: "RUNNING" } });
 
-  const results = await lusha.searchLeads(campaign.extractedFilters);
-  logger.info(`fetch-leads: ${results.length} enriched leads for campaign ${campaignId}`);
+  const results = await lusha.searchLeadsBasic(campaign.extractedFilters);
+  logger.info(`fetch-leads: ${results.length} basic leads discovered for campaign ${campaignId}`);
 
   if (results.length === 0) {
     await prisma.campaign.update({ where: { id: campaignId }, data: { status: "COMPLETED" } });
@@ -28,22 +28,19 @@ export async function runFetchLeadsJob(job) {
 
   const upsertedLeads = [];
   for (const r of results) {
-    const personId = r.lushaContactId ?? `${campaignId}-${r.email}`;
+    const personId = r.lushaContactId ?? `${campaignId}-unknown-${Date.now()}`;
     const lead = await prisma.lead.upsert({
       where: { lushaPersonId: personId },
       update: {},
       create: {
         lushaPersonId: personId,
+        lushaRequestId: r.requestId,
         firstName: r.firstName,
         lastName: r.lastName,
-        email: r.email,
-        phone: r.phone,
         title: r.title,
         company: r.company,
-        location: r.location,
-        linkedinUrl: r.linkedinUrl,
-        department: r.department,
-        seniority: r.seniority,
+        enrichmentStatus: "PREVIEW",
+        isEnriched: false,
         campaignId
       }
     });
@@ -68,8 +65,8 @@ export async function runFetchLeadsJob(job) {
     logger.info(`fetch-leads: scored ${scores.length} leads for campaign ${campaignId}`);
   }
 
-  await prisma.campaign.update({ where: { id: campaignId }, data: { status: "AWAITING_LEAD_APPROVAL" } });
-  logger.info(`fetch-leads: campaign ${campaignId} awaiting lead approval (${upsertedLeads.length} leads)`);
+  await prisma.campaign.update({ where: { id: campaignId }, data: { status: "AWAITING_LEAD_SELECTION" } });
+  logger.info(`fetch-leads: campaign ${campaignId} awaiting lead selection (${upsertedLeads.length} preview leads)`);
   return { leadCount: upsertedLeads.length };
 }
 
