@@ -316,7 +316,7 @@ router.post("/:id/add-test-lead", requireRole("ADMIN", "MANAGER"), async (req, r
     });
 
     const boss = await getBoss();
-    await boss.send("generate-email", { leadId: lead.id, autoDispatch: false });
+    await boss.send("generate-email", { leadId: lead.id, autoDispatch: true });
 
     res.status(201).json({ lead });
   } catch (e) { next(e); }

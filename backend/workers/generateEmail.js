@@ -1,5 +1,6 @@
 import { prisma } from "../lib/prisma.js";
 import { generateDraft as realGenerateDraft } from "../services/emailGen.js";
+import { getBoss } from "../lib/pgboss.js";
 import { logger } from "../lib/logger.js";
 
 export const QUEUE = "generate-email";
@@ -51,11 +52,18 @@ export async function runGenerateEmailJob(job) {
       }
     });
     if (pendingLeads === 0) {
-      await prisma.campaign.update({
-        where: { id: lead.campaignId },
-        data: { status: "AWAITING_EMAIL_APPROVAL" }
-      });
-      logger.info(`campaign ${lead.campaignId} awaiting email approval`);
+      if (campaign?.mode === "TEST") {
+        // TEST campaigns skip email approval — dispatch immediately
+        const boss = await getBoss();
+        await boss.send("dispatch-to-instantly", { campaignId: lead.campaignId });
+        logger.info(`TEST campaign ${lead.campaignId} dispatching immediately`);
+      } else {
+        await prisma.campaign.update({
+          where: { id: lead.campaignId },
+          data: { status: "AWAITING_EMAIL_APPROVAL" }
+        });
+        logger.info(`campaign ${lead.campaignId} awaiting email approval`);
+      }
     }
   }
 

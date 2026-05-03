@@ -54,10 +54,7 @@ export async function runDispatchJob(job) {
     if (rejectedEmails.has(p.email)) {
       await prisma.email.update({ where: { id: p._emailId }, data: { status: "FAILED" } });
     } else {
-      await prisma.email.update({
-        where: { id: p._emailId },
-        data: { status: "SENT", sentAt: new Date() }
-      });
+      await prisma.email.update({ where: { id: p._emailId }, data: { status: "SENT", sentAt: new Date() } });
     }
   }
   logger.info(`dispatch: campaign=${campaignId} accepted=${result.accepted} rejected=${(result.rejected || []).length}`);
