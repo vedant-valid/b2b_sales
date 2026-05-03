@@ -1,5 +1,6 @@
 import { prisma } from "../lib/prisma.js";
 import { generateDraft as realGenerateDraft } from "../services/emailGen.js";
+import { renderTemplate as realRenderTemplate } from "../services/templateEngine.js";
 import { getBoss } from "../lib/pgboss.js";
 import { logger } from "../lib/logger.js";
 
@@ -21,6 +22,9 @@ function buildTestDraft(lead) {
 let generateDraft = realGenerateDraft;
 export function __setGenerateDraft(fn) { generateDraft = fn; }
 
+let renderTemplate = realRenderTemplate;
+export function __setRenderTemplate(fn) { renderTemplate = fn; }
+
 export async function runGenerateEmailJob(job) {
   const { leadId, autoDispatch = false } = job.data;
   const lead = await prisma.lead.findUnique({ where: { id: leadId } });
@@ -31,6 +35,8 @@ export async function runGenerateEmailJob(job) {
   let draft;
   if (campaign?.mode === "TEST") {
     draft = buildTestDraft(lead);
+  } else if (campaign?.emailMode === "TEMPLATE" && campaign.emailTemplateSubject && campaign.emailTemplateBody) {
+    draft = await renderTemplate(campaign.emailTemplateSubject, campaign.emailTemplateBody, lead);
   } else {
     const brandDoc = await prisma.brandDoc.findUnique({ where: { id: "singleton" } });
     draft = await generateDraft(lead, DEFAULT_PROFILE, { brandDoc: brandDoc?.content ?? null });
