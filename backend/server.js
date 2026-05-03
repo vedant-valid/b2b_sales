@@ -22,8 +22,12 @@ async function ensureSeedUsers() {
 }
 
 const app = createApp();
-app.listen(env.PORT, async () => {
+const server = app.listen(env.PORT, async () => {
   logger.info(`backend listening on :${env.PORT}`);
   await ensureSeedUsers();
   await registerWorkers();
+});
+
+process.on("SIGTERM", () => {
+  server.close(() => process.exit(0));
 });
