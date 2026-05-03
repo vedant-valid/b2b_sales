@@ -5,6 +5,7 @@ const SEEDED_EMAILS = ["vedantmadne555@gmail.com", "manager@reachout.dev"];
 export async function resetDb() {
   await prisma.reply.deleteMany();
   await prisma.email.deleteMany();
+  await prisma.leadSelection.deleteMany();
   await prisma.lead.deleteMany();
   await prisma.campaign.deleteMany();
   await prisma.brandDoc.deleteMany();

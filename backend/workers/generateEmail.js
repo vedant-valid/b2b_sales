@@ -47,7 +47,7 @@ export async function runGenerateEmailJob(job) {
     const pendingLeads = await prisma.lead.count({
       where: {
         campaignId: lead.campaignId,
-        email: { not: null },
+        isEnriched: true,
         emails: { none: {} }
       }
     });

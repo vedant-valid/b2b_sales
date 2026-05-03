@@ -74,12 +74,12 @@ describe("generateEmail worker", () => {
     const campaign = await prisma.campaign.create({
       data: { name: "X", rawGoal: "g", extractedFilters: {}, createdById: user.id }
     });
-    // Create two leads, both with emails
+    // Create two leads, both enriched (email gen only runs on UNLOCKED leads)
     const lead1 = await prisma.lead.create({
-      data: { firstName: "A", lastName: "B", email: "a@b.com", company: "Acme", campaignId: campaign.id }
+      data: { firstName: "A", lastName: "B", email: "a@b.com", company: "Acme", campaignId: campaign.id, isEnriched: true, enrichmentStatus: "UNLOCKED" }
     });
     const lead2 = await prisma.lead.create({
-      data: { firstName: "C", lastName: "D", email: "c@d.com", company: "Beta", campaignId: campaign.id }
+      data: { firstName: "C", lastName: "D", email: "c@d.com", company: "Beta", campaignId: campaign.id, isEnriched: true, enrichmentStatus: "UNLOCKED" }
     });
 
     // Generate email for lead1 — still one pending, should NOT set approval status

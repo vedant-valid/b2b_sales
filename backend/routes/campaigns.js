@@ -4,11 +4,15 @@ import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/auth.js";
 import { requireRole } from "../middleware/rbac.js";
 import { extractFilters as realExtractFilters } from "../services/prompt.js";
+import { enrichLeads as realEnrichLeads } from "../services/lusha.js";
 import { getBoss } from "../lib/pgboss.js";
 import { env } from "../config/env.js";
 
 let extract = realExtractFilters;
 export function __setExtractFilters(fn) { extract = fn; }
+
+let enrich = realEnrichLeads;
+export function __setEnrichLeadsImpl(fn) { enrich = fn; }
 
 const router = Router();
 router.use(requireAuth);
@@ -170,7 +174,7 @@ router.post("/:id/approve-leads", requireRole("ADMIN", "MANAGER"), async (req, r
     const { approvedIds } = parsed.data;
 
     const allLeads = await prisma.lead.findMany({
-      where: { campaignId: campaign.id, email: { not: null } }
+      where: { campaignId: campaign.id, isEnriched: true, email: { not: null } }
     });
 
     let leadsToProcess;
@@ -319,6 +323,162 @@ router.post("/:id/add-test-lead", requireRole("ADMIN", "MANAGER"), async (req, r
     await boss.send("generate-email", { leadId: lead.id, autoDispatch: true });
 
     res.status(201).json({ lead });
+  } catch (e) { next(e); }
+});
+
+// ─── Phase 2: Lead Selection ──────────────────────────────────────────────────
+
+const selectLeadsSchema = z.object({
+  leadIds: z.array(z.string())
+});
+
+router.post("/:id/select-leads", requireRole("ADMIN", "MANAGER"), async (req, res, next) => {
+  try {
+    const campaign = await prisma.campaign.findUnique({ where: { id: req.params.id } });
+    if (!campaign) return res.status(404).json({ error: "not_found" });
+    if (campaign.status !== "AWAITING_LEAD_SELECTION") return res.status(409).json({ error: "invalid_status" });
+
+    const parsed = selectLeadsSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: "invalid_input" });
+    const { leadIds } = parsed.data;
+
+    // Verify submitted IDs actually belong to this campaign
+    const campaignLeads = await prisma.lead.findMany({
+      where: { campaignId: campaign.id },
+      select: { id: true }
+    });
+    const campaignLeadIdSet = new Set(campaignLeads.map(l => l.id));
+    const validIds = leadIds.filter(id => campaignLeadIdSet.has(id));
+
+    // Replace this user's entire selection for this campaign atomically
+    await prisma.$transaction([
+      prisma.leadSelection.deleteMany({
+        where: { userId: req.user.sub, campaignId: campaign.id }
+      }),
+      prisma.leadSelection.createMany({
+        data: validIds.map(leadId => ({
+          userId: req.user.sub,
+          campaignId: campaign.id,
+          leadId
+        }))
+      })
+    ]);
+
+    res.json({ selected: validIds.length });
+  } catch (e) { next(e); }
+});
+
+// ─── Phase 2: Lead Unlock (Credit-Consuming Enrichment) ──────────────────────
+
+router.post("/:id/unlock-leads", requireRole("ADMIN", "MANAGER"), async (req, res, next) => {
+  try {
+    const campaign = await prisma.campaign.findUnique({ where: { id: req.params.id } });
+    if (!campaign) return res.status(404).json({ error: "not_found" });
+    if (campaign.status !== "AWAITING_LEAD_SELECTION") return res.status(409).json({ error: "invalid_status" });
+
+    // Get this user's selections for the campaign
+    const selections = await prisma.leadSelection.findMany({
+      where: { userId: req.user.sub, campaignId: campaign.id },
+      include: { lead: true }
+    });
+
+    if (selections.length === 0) {
+      return res.status(400).json({ error: "no_leads_selected" });
+    }
+
+    const allSelected = selections.map(s => s.lead);
+    const alreadyEnriched = allSelected.filter(l => l.isEnriched);
+    const toEnrich = allSelected.filter(l => !l.isEnriched && l.lushaPersonId && l.lushaRequestId);
+
+    if (toEnrich.length === 0 && alreadyEnriched.length === 0) {
+      return res.status(400).json({ error: "no_leads_to_unlock" });
+    }
+
+    // Credit check — only charge for leads that need enrichment
+    const currentUser = await prisma.user.findUnique({ where: { id: req.user.sub } });
+    if (currentUser.credits < toEnrich.length) {
+      return res.status(402).json({
+        error: "insufficient_credits",
+        required: toEnrich.length,
+        available: currentUser.credits
+      });
+    }
+
+    let enrichedCount = 0;
+    let failedCount = 0;
+
+    if (toEnrich.length > 0) {
+      // All leads in one campaign run share a requestId
+      const requestId = toEnrich[0].lushaRequestId;
+      const contactIds = toEnrich.map(l => l.lushaPersonId);
+
+      let enrichedData;
+      try {
+        enrichedData = await enrich(requestId, contactIds);
+      } catch (err) {
+        return next(err);
+      }
+
+      const enrichedMap = new Map(enrichedData.map(e => [e.lushaContactId, e]));
+
+      // Atomic: update leads + deduct credits for successful enrichments only
+      await prisma.$transaction(async (tx) => {
+        for (const lead of toEnrich) {
+          const data = enrichedMap.get(lead.lushaPersonId);
+          if (data) {
+            await tx.lead.update({
+              where: { id: lead.id },
+              data: {
+                email: data.email,
+                phone: data.phone,
+                linkedinUrl: data.linkedinUrl,
+                location: data.location,
+                department: data.department,
+                seniority: data.seniority,
+                enrichmentStatus: "UNLOCKED",
+                isEnriched: true
+              }
+            });
+            enrichedCount++;
+          } else {
+            failedCount++;
+          }
+        }
+        if (enrichedCount > 0) {
+          await tx.user.update({
+            where: { id: req.user.sub },
+            data: { credits: { decrement: enrichedCount } }
+          });
+        }
+      });
+    }
+
+    const totalUnlocked = enrichedCount + alreadyEnriched.length;
+    if (totalUnlocked === 0) {
+      return res.status(422).json({ error: "enrichment_failed", enriched: 0, failed: failedCount });
+    }
+
+    // Queue email generation for all UNLOCKED leads that have email
+    const unlockedLeads = await prisma.lead.findMany({
+      where: { campaignId: campaign.id, isEnriched: true, email: { not: null } }
+    });
+
+    await prisma.campaign.update({
+      where: { id: campaign.id },
+      data: { status: "READY_FOR_OUTREACH" }
+    });
+
+    const boss = await getBoss();
+    for (const lead of unlockedLeads) {
+      await boss.send("generate-email", { leadId: lead.id, autoDispatch: true });
+    }
+
+    res.json({
+      enriched: enrichedCount,
+      failed: failedCount,
+      skipped: alreadyEnriched.length,
+      emailsQueued: unlockedLeads.length
+    });
   } catch (e) { next(e); }
 });
 
