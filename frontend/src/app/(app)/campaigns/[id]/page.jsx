@@ -19,6 +19,8 @@ export default function CampaignDetailPage({ params }) {
   const [acting, setActing] = useState(false);
   const [skippedIds, setSkippedIds] = useState(new Set());
   const [rowError, setRowError] = useState({});
+  const [unlockError, setUnlockError] = useState("");
+  const [unlocking, setUnlocking] = useState(false);
   const [testEmail, setTestEmail] = useState("");
   const [addingTestLead, setAddingTestLead] = useState(false);
   const [testLeadError, setTestLeadError] = useState("");
@@ -93,6 +95,28 @@ export default function CampaignDetailPage({ params }) {
     setSkippedIds(prev => { const n = new Set(prev); n.delete(leadId); return n; });
   }
 
+  async function onUnlockLeads() {
+    setUnlocking(true);
+    setUnlockError("");
+    const selectedIds = leads.filter(l => !skippedIds.has(l.id)).map(l => l.id);
+    try {
+      await apiFetch(`/api/campaigns/${id}/select-leads`, {
+        token: session.backendToken, method: "POST", body: { leadIds: selectedIds }
+      });
+      await apiFetch(`/api/campaigns/${id}/unlock-leads`, {
+        token: session.backendToken, method: "POST"
+      });
+      setSkippedIds(new Set());
+      loadCampaign();
+      loadLeads();
+    } catch (e) {
+      const msg = e.data?.error === "insufficient_credits"
+        ? `Not enough credits — need ${e.data.required}, have ${e.data.available}`
+        : e.message;
+      setUnlockError(msg);
+    } finally { setUnlocking(false); }
+  }
+
   async function onSyncStatus() {
     setActing(true);
     setError("");
@@ -146,6 +170,54 @@ export default function CampaignDetailPage({ params }) {
           </button>
         )}
       </div>
+
+      <div>
+        <h2 className="font-semibold mb-1">Raw goal</h2>
+        <p className="text-sm">{campaign.rawGoal}</p>
+      </div>
+      <div>
+        <h2 className="font-semibold mb-1">Extracted filters</h2>
+        <FilterPreview filters={campaign.extractedFilters} />
+      </div>
+
+      {campaign.status === "AWAITING_LEAD_SELECTION" && !isViewer && (
+        <div className="border border-purple-400 bg-purple-50 rounded p-4 space-y-3">
+          <p className="font-semibold text-purple-800">
+            {leads.length} leads discovered (free preview) — review scores, deselect any you don&apos;t want, then unlock selected leads to fetch their contact details.
+          </p>
+          <p className="text-xs text-purple-600">
+            Credits used: <strong>0 so far</strong>. Unlocking costs 1 credit per lead.
+          </p>
+          {leads.length > 0 && (
+            <LeadApprovalTable
+              leads={leads}
+              skippedIds={skippedIds}
+              onSkip={onSkip}
+              onUndoSkip={onUndoSkip}
+              rowError={rowError}
+            />
+          )}
+          <div className="flex gap-2 items-center pt-1 flex-wrap">
+            <button
+              onClick={onUnlockLeads}
+              disabled={unlocking || leads.filter(l => !skippedIds.has(l.id)).length === 0}
+              className="bg-purple-700 text-white px-4 py-2 rounded text-sm disabled:opacity-50"
+            >
+              {unlocking
+                ? "Unlocking…"
+                : `Unlock ${leads.filter(l => !skippedIds.has(l.id)).length} leads (${leads.filter(l => !skippedIds.has(l.id)).length} credits)`}
+            </button>
+            <button
+              onClick={() => onAction("reject-leads")}
+              disabled={acting}
+              className="bg-red-600 text-white px-4 py-2 rounded text-sm disabled:opacity-50"
+            >
+              Discard all &amp; reset
+            </button>
+          </div>
+          {unlockError && <p className="text-red-600 text-sm">{unlockError}</p>}
+        </div>
+      )}
 
       {campaign.status === "AWAITING_LEAD_APPROVAL" && !isViewer && (
         <div className="border border-yellow-400 bg-yellow-50 rounded p-4 space-y-3">
@@ -207,16 +279,7 @@ export default function CampaignDetailPage({ params }) {
       {jobId && <JobProgressBar jobId={jobId} />}
       {error && <p className="text-red-600 text-sm">{error}</p>}
 
-      <div>
-        <h2 className="font-semibold mb-1">Raw goal</h2>
-        <p className="text-sm">{campaign.rawGoal}</p>
-      </div>
-      <div>
-        <h2 className="font-semibold mb-1">Extracted filters</h2>
-        <FilterPreview filters={campaign.extractedFilters} />
-      </div>
-
-      <div>
+      {!["AWAITING_LEAD_APPROVAL", "AWAITING_LEAD_SELECTION"].includes(campaign.status) && <div>
         <div className="flex justify-between items-center mb-2">
           <h2 className="font-semibold">Leads ({leads.length})</h2>
           <div className="flex gap-2 items-center">
@@ -293,7 +356,7 @@ export default function CampaignDetailPage({ params }) {
             {testLeadError && <span className="text-xs text-red-500">{testLeadError}</span>}
           </form>
         )}
-      </div>
+      </div>}
     </div>
   );
 }

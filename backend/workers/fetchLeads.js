@@ -18,8 +18,18 @@ export async function runFetchLeadsJob(job) {
 
   await prisma.campaign.update({ where: { id: campaignId }, data: { status: "RUNNING" } });
 
-  const results = await lusha.searchLeadsBasic(campaign.extractedFilters);
-  logger.info(`fetch-leads: ${results.length} basic leads discovered for campaign ${campaignId}`);
+  const rawResults = await lusha.searchLeadsBasic(campaign.extractedFilters);
+
+  // Post-filter by titleKeywords if the extraction produced them
+  const keywords = campaign.extractedFilters?.titleKeywords;
+  const results = keywords?.length
+    ? rawResults.filter(r => {
+        const title = (r.title || "").toLowerCase();
+        return keywords.some(kw => title.includes(kw.toLowerCase()));
+      })
+    : rawResults;
+
+  logger.info(`fetch-leads: ${rawResults.length} raw → ${results.length} title-matched leads for campaign ${campaignId}`);
 
   if (results.length === 0) {
     await prisma.campaign.update({ where: { id: campaignId }, data: { status: "COMPLETED" } });

@@ -206,9 +206,12 @@ router.post("/:id/reject-leads", requireRole("ADMIN", "MANAGER"), async (req, re
   try {
     const campaign = await prisma.campaign.findUnique({ where: { id: req.params.id } });
     if (!campaign) return res.status(404).json({ error: "not_found" });
-    if (campaign.status !== "AWAITING_LEAD_APPROVAL") return res.status(409).json({ error: "invalid_status" });
+    if (!["AWAITING_LEAD_APPROVAL", "AWAITING_LEAD_SELECTION"].includes(campaign.status)) {
+      return res.status(409).json({ error: "invalid_status" });
+    }
     const leads = await prisma.lead.findMany({ where: { campaignId: campaign.id }, select: { id: true } });
     const leadIds = leads.map(l => l.id);
+    await prisma.leadSelection.deleteMany({ where: { leadId: { in: leadIds } } });
     await prisma.reply.deleteMany({ where: { leadId: { in: leadIds } } });
     await prisma.email.deleteMany({ where: { leadId: { in: leadIds } } });
     await prisma.lead.deleteMany({ where: { id: { in: leadIds } } });
