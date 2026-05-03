@@ -13,7 +13,7 @@ function clientSubstitute(template, lead) {
     .replace(/\{\{aiPersonalization\}\}/g, "[AI personalisation]");
 }
 
-export default function EmailTemplatePanel({ campaignId, token, isViewer }) {
+export default function EmailTemplatePanel({ campaignId, token }) {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState("edit");
   const [emailMode, setEmailMode] = useState("AI");
@@ -51,7 +51,11 @@ export default function EmailTemplatePanel({ campaignId, token, isViewer }) {
   }, [tab, campaignId, token]);
 
   function handleTabChange(next) {
-    if (dirty && !confirm("You have unsaved changes. Discard and switch tabs?")) return;
+    if (dirty) {
+      if (!confirm("You have unsaved changes. Discard and switch tabs?")) return;
+      setSubject(savedSubject);
+      setBody(savedBody);
+    }
     setTab(next);
   }
 
