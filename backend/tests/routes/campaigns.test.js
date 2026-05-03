@@ -429,6 +429,95 @@ describe("select-leads", () => {
   });
 });
 
+describe("template routes", () => {
+    async function makeCampaign(token) {
+      const res = await request(app)
+        .post("/api/campaigns")
+        .set(authHeader(token))
+        .send({ name: "T", rawGoal: "find engineers in India" });
+      return res.body.campaign.id;
+    }
+
+    test("GET /:id/template returns default AI mode with null fields", async () => {
+      const { token } = await createUser({ email: `tmpl1${Date.now()}@x.com`, role: "MANAGER" });
+      const id = await makeCampaign(token);
+      const res = await request(app)
+        .get(`/api/campaigns/${id}/template`)
+        .set(authHeader(token));
+      expect(res.status).toBe(200);
+      expect(res.body).toMatchObject({
+        emailMode: "AI",
+        emailTemplateSubject: null,
+        emailTemplateBody: null
+      });
+    });
+
+    test("PUT /:id/template saves template and switches to TEMPLATE mode", async () => {
+      const { token } = await createUser({ email: `tmpl2${Date.now()}@x.com`, role: "MANAGER" });
+      const id = await makeCampaign(token);
+      const res = await request(app)
+        .put(`/api/campaigns/${id}/template`)
+        .set(authHeader(token))
+        .send({ emailMode: "TEMPLATE", subject: "Hi {{firstName}}", body: "Join us at {{company}}" });
+      expect(res.status).toBe(200);
+      expect(res.body).toMatchObject({
+        emailMode: "TEMPLATE",
+        emailTemplateSubject: "Hi {{firstName}}",
+        emailTemplateBody: "Join us at {{company}}"
+      });
+    });
+
+    test("PUT /:id/template returns 400 when TEMPLATE mode but subject is empty", async () => {
+      const { token } = await createUser({ email: `tmpl3${Date.now()}@x.com`, role: "MANAGER" });
+      const id = await makeCampaign(token);
+      const res = await request(app)
+        .put(`/api/campaigns/${id}/template`)
+        .set(authHeader(token))
+        .send({ emailMode: "TEMPLATE", subject: "", body: "body text" });
+      expect(res.status).toBe(400);
+    });
+
+    test("PUT /:id/template returns 400 when TEMPLATE mode but body is empty", async () => {
+      const { token } = await createUser({ email: `tmpl4${Date.now()}@x.com`, role: "MANAGER" });
+      const id = await makeCampaign(token);
+      const res = await request(app)
+        .put(`/api/campaigns/${id}/template`)
+        .set(authHeader(token))
+        .send({ emailMode: "TEMPLATE", subject: "Subject", body: "" });
+      expect(res.status).toBe(400);
+    });
+
+    test("PUT /:id/template allows switching back to AI mode without subject/body", async () => {
+      const { token } = await createUser({ email: `tmpl5${Date.now()}@x.com`, role: "MANAGER" });
+      const id = await makeCampaign(token);
+      const res = await request(app)
+        .put(`/api/campaigns/${id}/template`)
+        .set(authHeader(token))
+        .send({ emailMode: "AI" });
+      expect(res.status).toBe(200);
+      expect(res.body.emailMode).toBe("AI");
+    });
+
+    test("PUT /:id/template returns 403 for VIEWER", async () => {
+      const { token: managerToken } = await createUser({ email: `tmpl6m${Date.now()}@x.com`, role: "MANAGER" });
+      const { token: viewerToken } = await createUser({ email: `tmpl6v${Date.now()}@x.com`, role: "VIEWER" });
+      const id = await makeCampaign(managerToken);
+      const res = await request(app)
+        .put(`/api/campaigns/${id}/template`)
+        .set(authHeader(viewerToken))
+        .send({ emailMode: "TEMPLATE", subject: "S", body: "B" });
+      expect(res.status).toBe(403);
+    });
+
+    test("GET /:id/template returns 404 for unknown campaign", async () => {
+      const { token } = await createUser({ email: `tmpl7${Date.now()}@x.com`, role: "MANAGER" });
+      const res = await request(app)
+        .get("/api/campaigns/nonexistent-id/template")
+        .set(authHeader(token));
+      expect(res.status).toBe(404);
+    });
+  });
+
 describe("unlock-leads", () => {
   beforeEach(() => {
     __setEnrichLeadsImpl(jest.fn().mockImplementation(async (_reqId, contactIds) =>

@@ -485,4 +485,48 @@ router.post("/:id/unlock-leads", requireRole("ADMIN", "MANAGER"), async (req, re
   } catch (e) { next(e); }
 });
 
+const templateSchema = z.discriminatedUnion("emailMode", [
+  z.object({ emailMode: z.literal("AI") }),
+  z.object({
+    emailMode: z.literal("TEMPLATE"),
+    subject: z.string().min(1),
+    body: z.string().min(1)
+  })
+]);
+
+router.get("/:id/template", async (req, res, next) => {
+  try {
+    const campaign = await prisma.campaign.findUnique({ where: { id: req.params.id } });
+    if (!campaign) return res.status(404).json({ error: "not_found" });
+    res.json({
+      emailMode: campaign.emailMode,
+      emailTemplateSubject: campaign.emailTemplateSubject,
+      emailTemplateBody: campaign.emailTemplateBody
+    });
+  } catch (e) { next(e); }
+});
+
+router.put("/:id/template", requireRole("ADMIN", "MANAGER"), async (req, res, next) => {
+  try {
+    const campaign = await prisma.campaign.findUnique({ where: { id: req.params.id } });
+    if (!campaign) return res.status(404).json({ error: "not_found" });
+    const parsed = templateSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: "invalid_input", issues: parsed.error.issues });
+    const { emailMode, subject, body } = parsed.data;
+    const updated = await prisma.campaign.update({
+      where: { id: req.params.id },
+      data: {
+        emailMode,
+        emailTemplateSubject: emailMode === "TEMPLATE" ? subject : null,
+        emailTemplateBody: emailMode === "TEMPLATE" ? body : null
+      }
+    });
+    res.json({
+      emailMode: updated.emailMode,
+      emailTemplateSubject: updated.emailTemplateSubject,
+      emailTemplateBody: updated.emailTemplateBody
+    });
+  } catch (e) { next(e); }
+});
+
 export default router;
