@@ -16,10 +16,17 @@ enum Role {
 enum CampaignStatus {
   DRAFT
   RUNNING
+  AWAITING_LEAD_SELECTION
   AWAITING_LEAD_APPROVAL
   AWAITING_EMAIL_APPROVAL
+  READY_FOR_OUTREACH
   PAUSED
   COMPLETED
+}
+
+enum LeadEnrichmentStatus {
+  PREVIEW
+  UNLOCKED
 }
 
 enum CampaignMode {
@@ -52,51 +59,58 @@ enum Sentiment {
 }
 
 model User {
-  id                String     @id @default(cuid())
-  email             String     @unique
+  id                String          @id @default(cuid())
+  email             String          @unique
   name              String?
   password          String
-  role              Role       @default(VIEWER)
+  role              Role            @default(VIEWER)
+  credits           Int             @default(100)
   campaigns         Campaign[]
   uploadedBrandDocs BrandDoc[]
-  createdAt         DateTime   @default(now())
+  leadSelections    LeadSelection[]
+  createdAt         DateTime        @default(now())
 }
 
 model Campaign {
-  id                  String         @id @default(cuid())
+  id                  String          @id @default(cuid())
   name                String
   rawGoal             String
   extractedFilters    Json
-  status              CampaignStatus @default(DRAFT)
-  createdBy           User           @relation(fields: [createdById], references: [id])
+  status              CampaignStatus  @default(DRAFT)
+  createdBy           User            @relation(fields: [createdById], references: [id])
   createdById         String
   leads               Lead[]
+  leadSelections      LeadSelection[]
   instantlyCampaignId String?
-  mode                CampaignMode   @default(OUTREACH)
-  createdAt           DateTime       @default(now())
+  mode                CampaignMode    @default(OUTREACH)
+  createdAt           DateTime        @default(now())
 }
 
 model Lead {
-  id            String     @id @default(cuid())
-  lushaPersonId String?    @unique
-  firstName     String
-  lastName      String
-  email         String?
-  phone         String?
-  title         String?
-  company       String?
-  location      String?
-  linkedinUrl   String?
-  department    String?
-  seniority     String?
-  status        LeadStatus @default(NEW)
-  fitScore      Int?
-  fitReasoning  Json?
-  campaign      Campaign   @relation(fields: [campaignId], references: [id])
-  campaignId    String
-  emails        Email[]
-  replies       Reply[]
-  createdAt     DateTime   @default(now())
+  id               String               @id @default(cuid())
+  lushaPersonId    String?              @unique
+  lushaRequestId   String?
+  firstName        String
+  lastName         String
+  email            String?
+  phone            String?
+  title            String?
+  company          String?
+  location         String?
+  linkedinUrl      String?
+  department       String?
+  seniority        String?
+  enrichmentStatus LeadEnrichmentStatus @default(PREVIEW)
+  isEnriched       Boolean              @default(false)
+  status           LeadStatus           @default(NEW)
+  fitScore         Int?
+  fitReasoning     Json?
+  campaign         Campaign             @relation(fields: [campaignId], references: [id])
+  campaignId       String
+  emails           Email[]
+  replies          Reply[]
+  selections       LeadSelection[]
+  createdAt        DateTime             @default(now())
 }
 
 model Email {
@@ -122,6 +136,19 @@ model Reply {
   createdAt     DateTime   @default(now())
 
   @@unique([leadId, receivedAt])
+}
+
+model LeadSelection {
+  id         String   @id @default(cuid())
+  user       User     @relation(fields: [userId], references: [id])
+  userId     String
+  campaign   Campaign @relation(fields: [campaignId], references: [id])
+  campaignId String
+  lead       Lead     @relation(fields: [leadId], references: [id])
+  leadId     String
+  selectedAt DateTime @default(now())
+
+  @@unique([userId, leadId])
 }
 
 model BrandDoc {
