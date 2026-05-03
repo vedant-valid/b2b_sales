@@ -8,15 +8,21 @@ export default function LeadDetailPage({ params }) {
   const { id } = use(params);
   const { data: session } = useSession();
   const [lead, setLead] = useState(null);
+  const [error, setError] = useState(null);
 
   const load = useCallback(async () => {
     if (!session?.backendToken) return;
-    const { lead } = await apiFetch(`/api/leads/${id}`, { token: session.backendToken });
-    setLead(lead);
+    try {
+      const { lead } = await apiFetch(`/api/leads/${id}`, { token: session.backendToken });
+      setLead(lead);
+    } catch (e) {
+      setError(e.data?.error || e.message);
+    }
   }, [session?.backendToken, id]);
 
   useEffect(() => { load(); }, [load]);
 
+  if (error) return <p className="text-red-600 text-sm">Could not load lead: {error}</p>;
   if (!lead) return <p>Loading...</p>;
   return (
     <div className="space-y-6">
