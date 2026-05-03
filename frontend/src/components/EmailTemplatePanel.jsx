@@ -48,7 +48,7 @@ export default function EmailTemplatePanel({ campaignId, token }) {
     apiFetch(`/api/leads?campaignId=${campaignId}`, { token })
       .then(({ leads }) => setPreviewLead(leads?.[0] ?? null))
       .catch(() => {});
-  }, [tab, campaignId, token]);
+  }, [tab, campaignId, token, savedSubject]);
 
   function handleTabChange(next) {
     if (dirty) {
