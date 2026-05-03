@@ -3,6 +3,7 @@ import { use, useCallback, useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { apiFetch } from "@/lib/api";
 import FilterPreview from "@/components/FilterPreview";
+import EmailTemplatePanel from "@/components/EmailTemplatePanel";
 import JobProgressBar from "@/components/JobProgressBar";
 import LeadApprovalTable from "@/components/LeadApprovalTable";
 import Link from "next/link";
@@ -179,6 +180,13 @@ export default function CampaignDetailPage({ params }) {
         <h2 className="font-semibold mb-1">Extracted filters</h2>
         <FilterPreview filters={campaign.extractedFilters} />
       </div>
+
+      {!isViewer && (
+        <EmailTemplatePanel
+          campaignId={id}
+          token={session?.backendToken}
+        />
+      )}
 
       {campaign.status === "AWAITING_LEAD_SELECTION" && !isViewer && (
         <div className="border border-purple-400 bg-purple-50 rounded p-4 space-y-3">
