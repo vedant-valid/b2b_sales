@@ -47,7 +47,12 @@ export async function createCampaign(name, opts = {}) {
         type: "email",
         delay: 0,
         delay_unit: "minutes",
-        variants: [{ subject: "{{outreach_subject}}", body: "{{personalization}}" }]
+        variants: [{
+          subject: mode === "TEST"
+            ? "Campaign Automation Test | Vedant Madne"
+            : "Quick question for {{firstName}} at {{companyName}}",
+          body: "{{personalization}}"
+        }]
       }]
     }]
   }, { fetch: fetchFn });
@@ -71,7 +76,6 @@ export async function pushLeads(instantlyCampaignId, leads, opts = {}) {
         last_name: l.lastName,
         company_name: l.company,
         personalization: l.body,
-        custom_variables: { outreach_subject: l.subject }
       }, opts);
       if (devMode) logger.info(`instantly: dev mode — redirected ${l.email} → ${testEmail}`);
     } catch (err) {
