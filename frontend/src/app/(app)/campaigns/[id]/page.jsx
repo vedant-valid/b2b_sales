@@ -19,6 +19,9 @@ export default function CampaignDetailPage({ params }) {
   const [acting, setActing] = useState(false);
   const [skippedIds, setSkippedIds] = useState(new Set());
   const [rowError, setRowError] = useState({});
+  const [testEmail, setTestEmail] = useState("");
+  const [addingTestLead, setAddingTestLead] = useState(false);
+  const [testLeadError, setTestLeadError] = useState("");
 
   const loadCampaign = useCallback(() => {
     if (!session?.backendToken) return;
@@ -64,6 +67,22 @@ export default function CampaignDetailPage({ params }) {
       loadLeads();
     } catch (e) { setError(e.message); }
     finally { setActing(false); }
+  }
+
+  async function onAddTestLead(e) {
+    e.preventDefault();
+    if (!testEmail) return;
+    setAddingTestLead(true);
+    setTestLeadError("");
+    try {
+      await apiFetch(`/api/campaigns/${id}/add-test-lead`, {
+        token: session.backendToken, method: "POST", body: { email: testEmail }
+      });
+      setTestEmail("");
+      loadLeads();
+    } catch (e) {
+      setTestLeadError(e.data?.error === "email_already_in_campaign" ? "Already added" : e.message);
+    } finally { setAddingTestLead(false); }
   }
 
   function onSkip(leadId) {
@@ -253,6 +272,26 @@ export default function CampaignDetailPage({ params }) {
               ))}
             </tbody>
           </table>
+        )}
+
+        {campaign.mode === "TEST" && !isViewer && (
+          <form onSubmit={onAddTestLead} className="mt-3 flex items-center gap-2">
+            <input
+              type="email"
+              placeholder="Add test email address…"
+              value={testEmail}
+              onChange={e => { setTestEmail(e.target.value); setTestLeadError(""); }}
+              className="border border-gray-300 rounded px-3 py-1.5 text-sm w-72 focus:outline-none focus:border-gray-500"
+            />
+            <button
+              type="submit"
+              disabled={addingTestLead || !testEmail}
+              className="text-sm bg-black text-white px-3 py-1.5 rounded disabled:opacity-40"
+            >
+              {addingTestLead ? "Adding…" : "+ Add"}
+            </button>
+            {testLeadError && <span className="text-xs text-red-500">{testLeadError}</span>}
+          </form>
         )}
       </div>
     </div>

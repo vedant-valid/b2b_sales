@@ -292,4 +292,34 @@ router.post("/:id/dev-seed-lead", requireRole("ADMIN", "MANAGER"), async (req, r
   } catch (e) { next(e); }
 });
 
+const addTestLeadSchema = z.object({
+  email: z.string().email(),
+  firstName: z.string().optional().default("Test"),
+  lastName:  z.string().optional().default("Recipient"),
+});
+
+router.post("/:id/add-test-lead", requireRole("ADMIN", "MANAGER"), async (req, res, next) => {
+  try {
+    const campaign = await prisma.campaign.findUnique({ where: { id: req.params.id } });
+    if (!campaign) return res.status(404).json({ error: "not_found" });
+    if (campaign.mode !== "TEST") return res.status(409).json({ error: "only_for_test_campaigns" });
+
+    const parsed = addTestLeadSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: "invalid_input", detail: parsed.error.flatten() });
+    const { email, firstName, lastName } = parsed.data;
+
+    const existing = await prisma.lead.findFirst({ where: { campaignId: campaign.id, email } });
+    if (existing) return res.status(409).json({ error: "email_already_in_campaign" });
+
+    const lead = await prisma.lead.create({
+      data: { firstName, lastName, email, title: "Test Recipient", company: "—", campaignId: campaign.id }
+    });
+
+    const boss = await getBoss();
+    await boss.send("generate-email", { leadId: lead.id, autoDispatch: false });
+
+    res.status(201).json({ lead });
+  } catch (e) { next(e); }
+});
+
 export default router;
