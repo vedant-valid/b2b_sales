@@ -41,7 +41,24 @@ function ReasoningCell({ bullets }) {
 }
 
 export default function LeadApprovalTable({ leads, skippedIds, onSkip, onUndoSkip, rowError }) {
+  const lowScoreLeads = leads.filter(l => l.fitScore != null && l.fitScore < 40);
+  const allUnscored = leads.length > 0 && leads.every(l => l.fitScore == null);
+
   return (
+    <div className="space-y-2">
+      {lowScoreLeads.length > 0 && (
+        <div className="bg-amber-50 border border-amber-300 text-amber-800 text-xs px-3 py-2 rounded flex items-center gap-2">
+          <span>⚠</span>
+          <span>
+            <strong>{lowScoreLeads.length} lead{lowScoreLeads.length > 1 ? "s" : ""}</strong> {lowScoreLeads.length > 1 ? "have" : "has"} a low fit score (&lt;40) — review their reasoning before unlocking.
+          </span>
+        </div>
+      )}
+      {allUnscored && (
+        <div className="bg-gray-50 border border-gray-200 text-gray-500 text-xs px-3 py-2 rounded">
+          Fit scores unavailable — Gemini scoring may have failed. Review leads manually.
+        </div>
+      )}
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
@@ -98,6 +115,7 @@ export default function LeadApprovalTable({ leads, skippedIds, onSkip, onUndoSki
           })}
         </tbody>
       </table>
+    </div>
     </div>
   );
 }
