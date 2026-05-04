@@ -5,8 +5,21 @@ import { requireAuth } from "../middleware/auth.js";
 import { requireRole } from "../middleware/rbac.js";
 import { extractFilters as realExtractFilters } from "../services/prompt.js";
 import { enrichLeads as realEnrichLeads } from "../services/lusha.js";
+import { generateText } from "../services/gemini.js";
 import { getBoss } from "../lib/pgboss.js";
 import { env } from "../config/env.js";
+import { logger } from "../lib/logger.js";
+
+async function generateLeadSummary(lead, rawGoal) {
+  const prompt = `Write a 2-3 sentence professional summary of this sales lead for a B2B outreach rep. Be concise and factual — no filler phrases.
+
+Name: ${lead.firstName} ${lead.lastName}
+Title: ${lead.title ?? "Unknown"}
+Company: ${lead.company ?? "Unknown"}
+Location: ${lead.location ?? "Unknown"}
+Campaign goal: ${rawGoal}`;
+  return generateText(prompt);
+}
 
 let extract = realExtractFilters;
 export function __setExtractFilters(fn) { extract = fn; }
@@ -465,6 +478,18 @@ router.post("/:id/unlock-leads", requireRole("ADMIN", "MANAGER"), async (req, re
     const unlockedLeads = await prisma.lead.findMany({
       where: { campaignId: campaign.id, isEnriched: true, email: { not: null } }
     });
+
+    // Fire-and-forget: generate AI summary for newly enriched leads
+    const newlyEnrichedLeads = unlockedLeads.filter(l => !l.aiSummary);
+    if (newlyEnrichedLeads.length > 0) {
+      Promise.allSettled(
+        newlyEnrichedLeads.map(lead =>
+          generateLeadSummary(lead, campaign.rawGoal)
+            .then(summary => prisma.lead.update({ where: { id: lead.id }, data: { aiSummary: summary.trim() } }))
+            .catch(err => logger.warn(`ai-summary: failed for lead ${lead.id}: ${err.message}`))
+        )
+      );
+    }
 
     await prisma.campaign.update({
       where: { id: campaign.id },

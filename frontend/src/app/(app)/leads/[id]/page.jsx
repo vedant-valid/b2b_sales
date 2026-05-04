@@ -112,6 +112,13 @@ export default function LeadDetailPage({ params }) {
         </div>
       </div>
 
+      {lead.aiSummary && (
+        <div className="bg-blue-50 border border-blue-200 rounded px-4 py-3 space-y-1">
+          <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">AI Summary</p>
+          <p className="text-sm text-blue-900">{lead.aiSummary}</p>
+        </div>
+      )}
+
       <div className="space-y-1">
         <label className="text-sm font-semibold">Notes &amp; Action Items</label>
         {isViewer ? (

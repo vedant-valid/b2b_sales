@@ -113,6 +113,7 @@ model Lead {
   status           LeadStatus           @default(NEW)
   fitScore         Int?
   fitReasoning     Json?
+  aiSummary        String?
   notes            String?
   campaign         Campaign             @relation(fields: [campaignId], references: [id])
   campaignId       String
