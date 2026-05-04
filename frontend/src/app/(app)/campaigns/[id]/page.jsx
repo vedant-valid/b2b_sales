@@ -98,8 +98,8 @@ export default function CampaignDetailPage({ params }) {
     setSkippedIds(prev => { const n = new Set(prev); n.delete(leadId); return n; });
   }
 
-  function onLeadStatusChange(id, newStatus) {
-    setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, status: newStatus } : l)));
+  function onLeadStatusChange(leadId, newStatus) {
+    setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, status: newStatus } : l)));
   }
 
   async function onUnlockLeads() {
