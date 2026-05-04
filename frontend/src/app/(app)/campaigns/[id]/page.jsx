@@ -8,6 +8,10 @@ import JobProgressBar from "@/components/JobProgressBar";
 import LeadApprovalTable from "@/components/LeadApprovalTable";
 import Link from "next/link";
 import LeadTable from "@/components/LeadTable";
+import StepBar from "@/components/StepBar";
+import ActionCard from "@/components/ActionCard";
+import FilterEditor from "@/components/FilterEditor";
+import { campaignStatusLabel } from "@/lib/campaignStatus";
 
 const DEV_MODE = process.env.NEXT_PUBLIC_DEV_MODE === "true";
 
@@ -190,16 +194,19 @@ export default function CampaignDetailPage({ params }) {
         </div>
       )}
 
-      <div className="flex justify-between items-start">
-        <div>
-          <h1 className="text-xl font-bold">{campaign.name}</h1>
-          <p className="text-sm text-gray-600">Status: {campaign.status}</p>
+      <div className="space-y-4">
+        <div className="flex justify-between items-start">
+          <div>
+            <h1 className="text-xl font-bold">{campaign.name}</h1>
+            <p className="text-sm text-gray-500">{campaignStatusLabel(campaign.status)}</p>
+          </div>
+          {!isViewer && campaign.status === "DRAFT" && (
+            <button onClick={onRun} className="bg-black text-white px-3 py-2 rounded text-sm">
+              Run campaign
+            </button>
+          )}
         </div>
-        {!isViewer && campaign.status === "DRAFT" && (
-          <button onClick={onRun} className="bg-black text-white px-3 py-2 rounded text-sm">
-            Run campaign
-          </button>
-        )}
+        <StepBar status={campaign.status} />
       </div>
 
       <div>
@@ -218,130 +225,52 @@ export default function CampaignDetailPage({ params }) {
         />
       )}
 
+      {!isViewer && (
+        <ActionCard
+          campaign={campaign}
+          leads={leads}
+          skippedIds={skippedIds}
+          unlocking={unlocking}
+          acting={acting}
+          unlockError={unlockError}
+          onUnlockLeads={onUnlockLeads}
+          onAction={onAction}
+        />
+      )}
+
       {campaign.status === "AWAITING_LEAD_SELECTION" && !isViewer && (
-        <div className="border border-purple-400 bg-purple-50 rounded p-4 space-y-3">
-          <p className="font-semibold text-purple-800">
-            {leads.length} leads discovered (free preview) — review scores, deselect any you don&apos;t want, then unlock selected leads to fetch their contact details.
-          </p>
-          <p className="text-xs text-purple-600">
-            Credits used: <strong>0 so far</strong>. Unlocking costs 1 credit per lead.
-          </p>
-          {leads.length > 0 && (
-            <LeadApprovalTable
-              leads={leads}
-              skippedIds={skippedIds}
-              onSkip={onSkip}
-              onUndoSkip={onUndoSkip}
-              rowError={rowError}
-            />
-          )}
-          <div className="pt-1">
-            <button
-              onClick={() => {
-                setFilterDraft(JSON.stringify(campaign.extractedFilters, null, 2));
+        <div className="border border-gray-200 rounded-lg p-4">
+          <button
+            onClick={() => {
+              setFilterDraft(JSON.stringify(campaign.extractedFilters, null, 2));
+              setFilterError("");
+              setEditingFilters(v => !v);
+            }}
+            className="text-sm text-gray-600 underline"
+          >
+            {editingFilters ? "Cancel" : "Not happy with these leads? Edit filters and re-run →"}
+          </button>
+          {editingFilters && (
+            <FilterEditor
+              initialFilters={campaign.extractedFilters}
+              onRerun={async (filters) => {
                 setFilterError("");
-                setEditingFilters(v => !v);
+                setRerunning(true);
+                try {
+                  const { jobId: jid } = await apiFetch(`/api/campaigns/${id}/rerun-with-filters`, {
+                    token: session.backendToken, method: "POST", body: { filters }
+                  });
+                  setEditingFilters(false);
+                  setJobId(jid);
+                  setLeads([]);
+                  loadCampaign();
+                } catch (e) { setFilterError(e.message); }
+                finally { setRerunning(false); }
               }}
-              className="text-xs text-purple-700 underline"
-            >
-              {editingFilters ? "Cancel filter edit" : "Edit filters & re-run"}
-            </button>
-            {editingFilters && (
-              <div className="mt-2 space-y-2">
-                <textarea
-                  value={filterDraft}
-                  onChange={e => setFilterDraft(e.target.value)}
-                  rows={10}
-                  className="w-full border border-gray-300 rounded px-3 py-2 text-xs font-mono focus:outline-none focus:border-gray-500"
-                />
-                {filterError && <p className="text-xs text-red-600">{filterError}</p>}
-                <button
-                  onClick={onRerunWithFilters}
-                  disabled={rerunning}
-                  className="bg-purple-700 text-white px-4 py-2 rounded text-sm disabled:opacity-50"
-                >
-                  {rerunning ? "Re-running…" : "Re-run with these filters"}
-                </button>
-              </div>
-            )}
-          </div>
-
-          <div className="flex gap-2 items-center pt-1 flex-wrap">
-            <button
-              onClick={onUnlockLeads}
-              disabled={unlocking || leads.filter(l => !skippedIds.has(l.id)).length === 0}
-              className="bg-purple-700 text-white px-4 py-2 rounded text-sm disabled:opacity-50"
-            >
-              {unlocking
-                ? "Unlocking…"
-                : `Unlock ${leads.filter(l => !skippedIds.has(l.id)).length} leads (${leads.filter(l => !skippedIds.has(l.id)).length} credits)`}
-            </button>
-            <button
-              onClick={() => onAction("reject-leads")}
-              disabled={acting}
-              className="bg-red-600 text-white px-4 py-2 rounded text-sm disabled:opacity-50"
-            >
-              Discard all &amp; reset
-            </button>
-          </div>
-          {unlockError && <p className="text-red-600 text-sm">{unlockError}</p>}
-        </div>
-      )}
-
-      {campaign.status === "AWAITING_LEAD_APPROVAL" && !isViewer && (
-        <div className="border border-yellow-400 bg-yellow-50 rounded p-4 space-y-3">
-          <p className="font-semibold text-yellow-800">
-            {campaign._count?.leads ?? 0} leads fetched — skip any below, then approve the rest or reject all.
-          </p>
-          {leads.length > 0 && (
-            <LeadApprovalTable
-              leads={leads}
-              skippedIds={skippedIds}
-              onSkip={onSkip}
-              onUndoSkip={onUndoSkip}
-              rowError={rowError}
+              rerunning={rerunning}
             />
           )}
-          <div className="flex gap-2 items-center pt-1">
-            <button
-              onClick={() => onAction("approve-leads")}
-              disabled={acting}
-              className="bg-green-600 text-white px-4 py-2 rounded text-sm disabled:opacity-50"
-            >
-              Approve {leads.length - skippedIds.size} leads — generate emails
-            </button>
-            <button
-              onClick={() => onAction("reject-leads")}
-              disabled={acting}
-              className="bg-red-600 text-white px-4 py-2 rounded text-sm disabled:opacity-50"
-            >
-              Reject all — discard &amp; reset
-            </button>
-          </div>
-        </div>
-      )}
-
-      {campaign.status === "AWAITING_EMAIL_APPROVAL" && !isViewer && (
-        <div className="border border-blue-400 bg-blue-50 rounded p-4 space-y-2">
-          <p className="font-semibold text-blue-800">
-            Emails generated — review drafts below then approve to launch or reject to reset.
-          </p>
-          <div className="flex gap-2">
-            <button
-              onClick={() => onAction("approve-emails")}
-              disabled={acting}
-              className="bg-green-600 text-white px-4 py-2 rounded text-sm disabled:opacity-50"
-            >
-              Approve &amp; launch
-            </button>
-            <button
-              onClick={() => onAction("reject-emails")}
-              disabled={acting}
-              className="bg-red-600 text-white px-4 py-2 rounded text-sm disabled:opacity-50"
-            >
-              Reject — discard &amp; reset
-            </button>
-          </div>
+          {filterError && <p className="text-xs text-red-600 mt-2">{filterError}</p>}
         </div>
       )}
 
