@@ -1,5 +1,7 @@
 import { prisma } from "../lib/prisma.js";
 import { generateDraft as realGenerateDraft } from "../services/emailGen.js";
+import { renderTemplate as realRenderTemplate } from "../services/templateEngine.js";
+import { getBoss } from "../lib/pgboss.js";
 import { logger } from "../lib/logger.js";
 
 export const QUEUE = "generate-email";
@@ -20,6 +22,9 @@ function buildTestDraft(lead) {
 let generateDraft = realGenerateDraft;
 export function __setGenerateDraft(fn) { generateDraft = fn; }
 
+let renderTemplate = realRenderTemplate;
+export function __setRenderTemplate(fn) { renderTemplate = fn; }
+
 export async function runGenerateEmailJob(job) {
   const { leadId, autoDispatch = false } = job.data;
   const lead = await prisma.lead.findUnique({ where: { id: leadId } });
@@ -30,6 +35,8 @@ export async function runGenerateEmailJob(job) {
   let draft;
   if (campaign?.mode === "TEST") {
     draft = buildTestDraft(lead);
+  } else if (campaign?.emailMode === "TEMPLATE" && campaign.emailTemplateSubject && campaign.emailTemplateBody) {
+    draft = await renderTemplate(campaign.emailTemplateSubject, campaign.emailTemplateBody, lead);
   } else {
     const brandDoc = await prisma.brandDoc.findUnique({ where: { id: "singleton" } });
     draft = await generateDraft(lead, DEFAULT_PROFILE, { brandDoc: brandDoc?.content ?? null });
@@ -46,16 +53,24 @@ export async function runGenerateEmailJob(job) {
     const pendingLeads = await prisma.lead.count({
       where: {
         campaignId: lead.campaignId,
+        isEnriched: true,
         email: { not: null },
         emails: { none: {} }
       }
     });
     if (pendingLeads === 0) {
-      await prisma.campaign.update({
-        where: { id: lead.campaignId },
-        data: { status: "AWAITING_EMAIL_APPROVAL" }
-      });
-      logger.info(`campaign ${lead.campaignId} awaiting email approval`);
+      if (campaign?.mode === "TEST") {
+        // TEST campaigns skip email approval — dispatch immediately
+        const boss = await getBoss();
+        await boss.send("dispatch-to-instantly", { campaignId: lead.campaignId });
+        logger.info(`TEST campaign ${lead.campaignId} dispatching immediately`);
+      } else {
+        await prisma.campaign.update({
+          where: { id: lead.campaignId },
+          data: { status: "AWAITING_EMAIL_APPROVAL" }
+        });
+        logger.info(`campaign ${lead.campaignId} awaiting email approval`);
+      }
     }
   }
 

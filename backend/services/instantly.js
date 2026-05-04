@@ -20,7 +20,7 @@ async function req(path, method, body, { fetch: fetchFn = globalThis.fetch } = {
   if (!res.ok) {
     let detail = "";
     try { detail = JSON.stringify(await res.json()); } catch { /* ignore */ }
-    const msg = `Instantly API error ${res.status} on ${method} ${path}: ${detail}`;
+    const msg = `instantly API error ${res.status} on ${method} ${path}: ${detail}`;
     throw new HttpError(res.status >= 500 ? 502 : res.status, "instantly_error", msg);
   }
   return res.json();
@@ -47,7 +47,12 @@ export async function createCampaign(name, opts = {}) {
         type: "email",
         delay: 0,
         delay_unit: "minutes",
-        variants: [{ subject: "{{outreach_subject}}", body: "{{personalization}}" }]
+        variants: [{
+          subject: mode === "TEST"
+            ? "Campaign Automation Test | Vedant Madne"
+            : "Quick question for {{firstName}} at {{companyName}}",
+          body: "{{personalization}}"
+        }]
       }]
     }]
   }, { fetch: fetchFn });
@@ -71,7 +76,6 @@ export async function pushLeads(instantlyCampaignId, leads, opts = {}) {
         last_name: l.lastName,
         company_name: l.company,
         personalization: l.body,
-        custom_variables: { outreach_subject: l.subject }
       }, opts);
       if (devMode) logger.info(`instantly: dev mode — redirected ${l.email} → ${testEmail}`);
     } catch (err) {
@@ -95,6 +99,18 @@ export async function lookupInstantlyLeadId(instantlyCampaignId, email, opts = {
   return lead.id;
 }
 
+export async function sendSubsequence(instantlyCampaignId, email, body, opts = {}) {
+  const schedule = { name: "Default", timing: { from: "00:00", to: "23:59" }, days: { 0: true, 1: true, 2: true, 3: true, 4: true, 5: true, 6: true }, timezone: "Asia/Kolkata" };
+  await req("/api/v2/subsequences", "POST", {
+    parent_campaign: instantlyCampaignId,
+    lead_email: email,
+    name: `Follow-up ${new Date().toISOString()}`,
+    conditions: { crm_status: [], lead_activity: [], reply_contains: "" },
+    subsequence_schedule: { start_date: null, end_date: null, schedules: [schedule] },
+    sequences: [{ steps: [{ type: "email", delay: 0, delay_unit: "minutes", pre_delay: 0, pre_delay_unit: "minutes", variants: [{ subject: "Re:", body }] }] }]
+  }, opts);
+}
+
 export async function createFollowUpSubsequence(instantlyCampaignId, subject, body, opts = {}) {
   const schedule = { name: "Default", timing: { from: "00:00", to: "23:59" }, days: { 0: true, 1: true, 2: true, 3: true, 4: true, 5: true, 6: true }, timezone: "Asia/Kolkata" };
   const json = await req("/api/v2/subsequences", "POST", {
@@ -112,6 +128,13 @@ export async function moveLeadToSubsequence(instantlyLeadId, subsequenceId, opts
     id: instantlyLeadId,
     subsequence_id: subsequenceId
   }, opts);
+}
+
+export async function getCampaignAnalytics(instantlyCampaignId, opts = {}) {
+  const data = await req("/api/v2/analytics/campaign/summary", "POST", {
+    campaign_ids: [instantlyCampaignId]
+  }, opts);
+  return data?.[0] ?? null;
 }
 
 export async function getRecentReplies(instantlyCampaignId, sinceDate, opts = {}) {

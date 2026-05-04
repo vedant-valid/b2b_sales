@@ -1,5 +1,5 @@
 import { jest } from "@jest/globals";
-import { runGenerateEmailJob, __setGenerateDraft } from "../../workers/generateEmail.js";
+import { runGenerateEmailJob, __setGenerateDraft, __setRenderTemplate } from "../../workers/generateEmail.js";
 import { prisma } from "../../lib/prisma.js";
 import { resetDb } from "../setup.js";
 import { createUser } from "../helpers/factory.js";
@@ -74,12 +74,12 @@ describe("generateEmail worker", () => {
     const campaign = await prisma.campaign.create({
       data: { name: "X", rawGoal: "g", extractedFilters: {}, createdById: user.id }
     });
-    // Create two leads, both with emails
+    // Create two leads, both enriched (email gen only runs on UNLOCKED leads)
     const lead1 = await prisma.lead.create({
-      data: { firstName: "A", lastName: "B", email: "a@b.com", company: "Acme", campaignId: campaign.id }
+      data: { firstName: "A", lastName: "B", email: "a@b.com", company: "Acme", campaignId: campaign.id, isEnriched: true, enrichmentStatus: "UNLOCKED" }
     });
     const lead2 = await prisma.lead.create({
-      data: { firstName: "C", lastName: "D", email: "c@d.com", company: "Beta", campaignId: campaign.id }
+      data: { firstName: "C", lastName: "D", email: "c@d.com", company: "Beta", campaignId: campaign.id, isEnriched: true, enrichmentStatus: "UNLOCKED" }
     });
 
     // Generate email for lead1 — still one pending, should NOT set approval status
@@ -91,6 +91,59 @@ describe("generateEmail worker", () => {
     await runGenerateEmailJob({ data: { leadId: lead2.id, autoDispatch: true } });
     updated = await prisma.campaign.findUnique({ where: { id: campaign.id } });
     expect(updated.status).toBe("AWAITING_EMAIL_APPROVAL");
+  });
+
+  test("uses renderTemplate when campaign emailMode is TEMPLATE", async () => {
+    const { user } = await createUser({ email: `tmplW${Date.now()}@x.com` });
+    const campaign = await prisma.campaign.create({
+      data: {
+        name: "X",
+        rawGoal: "g",
+        extractedFilters: {},
+        createdById: user.id,
+        emailMode: "TEMPLATE",
+        emailTemplateSubject: "Hi {{firstName}}",
+        emailTemplateBody: "Join us at {{company}}"
+      }
+    });
+    const lead = await prisma.lead.create({
+      data: { firstName: "Jai", lastName: "N", email: "jai@n.com", title: "CTO", company: "Navana.ai", campaignId: campaign.id }
+    });
+
+    const mockRenderTemplate = jest.fn().mockResolvedValue({
+      subject: "Hi Jai",
+      body: "Join us at Navana.ai"
+    });
+    __setRenderTemplate(mockRenderTemplate);
+
+    await runGenerateEmailJob({ data: { leadId: lead.id } });
+
+    expect(mockRenderTemplate).toHaveBeenCalledTimes(1);
+    expect(mockRenderTemplate).toHaveBeenCalledWith(
+      "Hi {{firstName}}",
+      "Join us at {{company}}",
+      expect.objectContaining({ firstName: "Jai", company: "Navana.ai" })
+    );
+    const emails = await prisma.email.findMany({ where: { leadId: lead.id } });
+    expect(emails).toHaveLength(1);
+    expect(emails[0].subject).toBe("Hi Jai");
+    expect(emails[0].body).toBe("Join us at Navana.ai");
+  });
+
+  test("does NOT call renderTemplate when campaign emailMode is AI", async () => {
+    const { user } = await createUser({ email: `aiW${Date.now()}@x.com` });
+    const campaign = await prisma.campaign.create({
+      data: { name: "X", rawGoal: "g", extractedFilters: {}, createdById: user.id, emailMode: "AI" }
+    });
+    const lead = await prisma.lead.create({
+      data: { firstName: "A", lastName: "B", email: "a2@b.com", campaignId: campaign.id }
+    });
+    const mockRenderTemplate = jest.fn();
+    __setRenderTemplate(mockRenderTemplate);
+
+    await runGenerateEmailJob({ data: { leadId: lead.id } });
+
+    expect(mockRenderTemplate).not.toHaveBeenCalled();
   });
 
   test("bumps version on regeneration", async () => {

@@ -1,18 +1,9 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { authOptions } from "@/lib/auth";
 import LogoutButton from "@/components/LogoutButton";
 import AuthWatcher from "@/components/AuthWatcher";
-
-const NAV = [
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/campaigns", label: "Campaigns" },
-  { href: "/leads", label: "Leads" },
-  { href: "/replies", label: "Replies" },
-  { href: "/export", label: "Export" },
-  { href: "/settings", label: "Settings" },
-];
+import Sidebar from "@/components/Sidebar";
 
 export default async function AppLayout({ children }) {
   const session = await getServerSession(authOptions);
@@ -20,22 +11,17 @@ export default async function AppLayout({ children }) {
   return (
     <div className="min-h-screen flex flex-col">
       <header className="border-b px-6 py-3 flex justify-between items-center bg-white">
-        <span className="font-bold text-lg">Outreach</span>
+        <span className="font-bold text-lg tracking-tight">Outreach</span>
         <div className="flex items-center gap-4">
-          <span className="text-sm text-gray-500">{session.user.email} · {session.user.role}</span>
+          <span className="text-sm text-gray-500">
+            {session.user.email} · {session.user.role}
+          </span>
           <LogoutButton />
         </div>
       </header>
-      <div className="flex flex-1">
-        <nav className="w-48 border-r bg-gray-50 p-4 space-y-1 shrink-0">
-          {NAV.map(({ href, label }) => (
-            <Link key={href} href={href}
-              className="block px-3 py-2 rounded text-sm text-gray-700 hover:bg-gray-200">
-              {label}
-            </Link>
-          ))}
-        </nav>
-        <main className="flex-1 p-6">
+      <div className="flex flex-1 min-h-0">
+        <Sidebar />
+        <main className="flex-1 p-6 overflow-auto">
           <AuthWatcher />
           {children}
         </main>

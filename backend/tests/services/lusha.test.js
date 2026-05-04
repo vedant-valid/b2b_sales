@@ -1,5 +1,5 @@
 import { jest } from "@jest/globals";
-import { searchLeads } from "../../services/lusha.js";
+import { searchLeadsBasic, enrichLeads } from "../../services/lusha.js";
 
 function makeFetch(responses) {
   const calls = [];
@@ -54,42 +54,40 @@ const ENRICH_RESPONSE = {
   ]
 };
 
-describe("lusha service", () => {
-  test("searchLeads does search then enrich, returns normalized leads", async () => {
-    const fetch = makeFetch([
-      { status: 200, body: SEARCH_RESPONSE },
-      { status: 200, body: ENRICH_RESPONSE }
-    ]);
-    const leads = await searchLeads(
+describe("searchLeadsBasic", () => {
+  test("calls only /contact/search — no enrich call, no credits", async () => {
+    const fetch = makeFetch([{ status: 200, body: SEARCH_RESPONSE }]);
+
+    const result = await searchLeadsBasic(
       { seniorities: ["director"], departments: ["Engineering & Technical"], locations: ["India"] },
       { fetch }
     );
 
-    expect(leads).toHaveLength(1);
-    expect(leads[0].firstName).toBe("Alice");
-    expect(leads[0].lastName).toBe("Smith");
-    expect(leads[0].lushaContactId).toBe("contact-uuid-1");
-    expect(leads[0].email).toBe("alice@acme.com");
-    expect(leads[0].title).toBe("Head of Engineering");
-    expect(leads[0].company).toBe("Acme");
-    expect(leads[0].location).toBe("India");
-    expect(leads[0].linkedinUrl).toBe("https://linkedin.com/in/alice");
-
-    // First call is search, second is enrich
+    expect(fetch.calls).toHaveLength(1);
     expect(fetch.calls[0].url).toMatch(/contact\/search/);
-    expect(fetch.calls[1].url).toMatch(/contact\/enrich/);
 
-    // Verify enrich was called with requestId and contactIds from search
-    const enrichBody = JSON.parse(fetch.calls[1].init.body);
-    expect(enrichBody.requestId).toBe("req-123");
-    expect(enrichBody.contactIds).toContain("contact-uuid-1");
+    expect(result).toHaveLength(1);
+    expect(result[0].lushaContactId).toBe("contact-uuid-1");
+    expect(result[0].firstName).toBe("Alice");
+    expect(result[0].lastName).toBe("Smith");
+    expect(result[0].title).toBe("Head of Engineering");
+    expect(result[0].company).toBe("Acme");
+    expect(result[0].requestId).toBe("req-123");
+    // No email or phone — these come from Phase 2 enrichment
+    expect(result[0].email).toBeUndefined();
+    expect(result[0].phone).toBeUndefined();
+  });
+
+  test("returns empty array when search returns no contacts", async () => {
+    const fetch = makeFetch([{ status: 200, body: { requestId: "r", data: [], totalResults: 0 } }]);
+    const result = await searchLeadsBasic({ departments: ["Engineering & Technical"] }, { fetch });
+    expect(result).toEqual([]);
+    expect(fetch.calls).toHaveLength(1);
   });
 
   test("maps seniority strings to Lusha IDs in the search body", async () => {
-    const fetch = makeFetch([
-      { status: 200, body: { requestId: "r", data: [] } }
-    ]);
-    await searchLeads(
+    const fetch = makeFetch([{ status: 200, body: { requestId: "r", data: [] } }]);
+    await searchLeadsBasic(
       { seniorities: ["director", "c-suite", "manager"], locations: ["India"] },
       { fetch }
     );
@@ -98,10 +96,8 @@ describe("lusha service", () => {
   });
 
   test("maps companySizes to Lusha size ranges in the search body", async () => {
-    const fetch = makeFetch([
-      { status: 200, body: { requestId: "r", data: [] } }
-    ]);
-    await searchLeads(
+    const fetch = makeFetch([{ status: 200, body: { requestId: "r", data: [] } }]);
+    await searchLeadsBasic(
       { departments: ["Engineering & Technical"], companySizes: ["51-200", "201-500"] },
       { fetch }
     );
@@ -113,32 +109,88 @@ describe("lusha service", () => {
 
   test("always includes work_email in existing_data_points", async () => {
     const fetch = makeFetch([{ status: 200, body: { requestId: "r", data: [] } }]);
-    await searchLeads({ departments: ["Engineering & Technical"] }, { fetch });
+    await searchLeadsBasic({ departments: ["Engineering & Technical"] }, { fetch });
     const searchBody = JSON.parse(fetch.calls[0].init.body);
     expect(searchBody.filters.contacts.include.existing_data_points).toContain("work_email");
   });
 
-  test("returns empty array when search returns no contacts", async () => {
-    const fetch = makeFetch([{ status: 200, body: { requestId: "r", data: [], totalResults: 0 } }]);
-    const leads = await searchLeads({ departments: ["Engineering & Technical"] }, { fetch });
-    expect(leads).toEqual([]);
-    // Should not call enrich when there are no contacts
-    expect(fetch.calls).toHaveLength(1);
-  });
-
-  test("retries search on 429 with backoff", async () => {
+  test("retries on 429 with exponential backoff", async () => {
     const fetch = makeFetch([
       { status: 429, body: { error: "rate_limited" } },
       { status: 200, body: { requestId: "r", data: [] } }
     ]);
-    const leads = await searchLeads({ departments: ["Engineering & Technical"] }, { fetch, retryDelayMs: 1 });
-    expect(leads).toEqual([]);
+    const result = await searchLeadsBasic(
+      { departments: ["Engineering & Technical"] },
+      { fetch, retryDelayMs: 1 }
+    );
+    expect(result).toEqual([]);
     expect(fetch.calls).toHaveLength(2);
   });
 
   test("throws on non-429 search failure", async () => {
     const fetch = makeFetch([{ status: 403, body: { message: "forbidden" } }]);
-    await expect(searchLeads({ departments: ["Engineering & Technical"] }, { fetch }))
+    await expect(searchLeadsBasic({ departments: ["Engineering & Technical"] }, { fetch }))
       .rejects.toThrow(/lusha_search_failed_403/);
+  });
+});
+
+describe("enrichLeads", () => {
+  test("calls /contact/enrich with requestId and contactIds, returns normalized enriched leads", async () => {
+    const fetch = makeFetch([{ status: 200, body: ENRICH_RESPONSE }]);
+
+    const result = await enrichLeads("req-123", ["contact-uuid-1"], { fetch });
+
+    expect(fetch.calls).toHaveLength(1);
+    expect(fetch.calls[0].url).toMatch(/contact\/enrich/);
+
+    const body = JSON.parse(fetch.calls[0].init.body);
+    expect(body.requestId).toBe("req-123");
+    expect(body.contactIds).toContain("contact-uuid-1");
+
+    expect(result).toHaveLength(1);
+    expect(result[0].lushaContactId).toBe("contact-uuid-1");
+    expect(result[0].email).toBe("alice@acme.com");
+    expect(result[0].phone).toBe("+911234567890");
+    expect(result[0].linkedinUrl).toBe("https://linkedin.com/in/alice");
+    expect(result[0].location).toBe("India");
+    expect(result[0].department).toBe("Engineering & Technical");
+    expect(result[0].seniority).toBe("director");
+  });
+
+  test("filters out contacts where isSuccess is false", async () => {
+    const fetch = makeFetch([{
+      status: 200,
+      body: {
+        contacts: [
+          {
+            id: "c1", isSuccess: true,
+            data: {
+              firstName: "Alice", lastName: "Smith", jobTitle: "CTO", companyName: "Acme",
+              emailAddresses: [{ email: "a@acme.com", emailType: "work" }]
+            }
+          },
+          { id: "c2", isSuccess: false, data: {} }
+        ]
+      }
+    }]);
+
+    const result = await enrichLeads("req-x", ["c1", "c2"], { fetch });
+    expect(result).toHaveLength(1);
+    expect(result[0].lushaContactId).toBe("c1");
+  });
+
+  test("returns empty array when all contacts fail enrichment", async () => {
+    const fetch = makeFetch([{
+      status: 200,
+      body: { contacts: [{ id: "c1", isSuccess: false, data: {} }] }
+    }]);
+    const result = await enrichLeads("req-x", ["c1"], { fetch });
+    expect(result).toEqual([]);
+  });
+
+  test("throws on enrich API failure", async () => {
+    const fetch = makeFetch([{ status: 402, body: { message: "insufficient credits" } }]);
+    await expect(enrichLeads("req-x", ["c1"], { fetch }))
+      .rejects.toThrow(/lusha_enrich_failed_402/);
   });
 });

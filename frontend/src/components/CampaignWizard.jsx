@@ -67,6 +67,10 @@ export default function CampaignWizard() {
         </button>
       </div>
 
+      <div className="bg-blue-50 border border-blue-200 rounded p-3 text-sm text-blue-800">
+        Describe who you want to reach and why — we&apos;ll extract the targeting filters automatically using AI.
+      </div>
+
       {mode === "TEST" && (
         <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
           Test mode — uses a fixed demo email template. Leads are taken from the emails you enter below, no Lusha fetch.
@@ -80,27 +84,38 @@ export default function CampaignWizard() {
         onChange={(e) => setName(e.target.value)}
         required
       />
-      <textarea
-        className="w-full border p-2 rounded h-24"
-        placeholder={mode === "TEST" ? "Describe the test purpose (for reference only)" : "Describe your outreach goal in natural language"}
-        value={rawGoal}
-        onChange={(e) => setRawGoal(e.target.value)}
-        required
-      />
+      <div className="space-y-1">
+        <label className="block text-sm font-medium text-gray-700">
+          Campaign goal
+          <span className="font-normal text-gray-500 ml-2 text-xs">Describe in plain English who you want to reach and why</span>
+        </label>
+        <textarea
+          className="w-full border p-2 rounded h-24"
+          placeholder={mode === "TEST" ? "Describe the test purpose (for reference only)" : "Describe your outreach goal in natural language"}
+          value={rawGoal}
+          onChange={(e) => setRawGoal(e.target.value)}
+          required
+        />
+      </div>
 
       {mode === "TEST" && (
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Demo email addresses
-          </label>
-          <textarea
-            className="w-full border p-2 rounded h-32 font-mono text-sm"
-            placeholder={"vedant@example.com\nshweta@nstx.co.in\nkritika@newtonschool.co"}
-            value={testEmailsRaw}
-            onChange={(e) => setTestEmailsRaw(e.target.value)}
-            required
-          />
-          <p className="text-xs text-gray-400 mt-1">One email per line (or comma-separated). These become the leads for this demo campaign.</p>
+        <div className="space-y-2">
+          <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
+            Demo mode — emails go to the addresses below instead of real leads. Use this to test the flow end-to-end.
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Demo email addresses
+            </label>
+            <textarea
+              className="w-full border p-2 rounded h-32 font-mono text-sm"
+              placeholder={"vedant@example.com\nshweta@nstx.co.in\nkritika@newtonschool.co"}
+              value={testEmailsRaw}
+              onChange={(e) => setTestEmailsRaw(e.target.value)}
+              required
+            />
+            <p className="text-xs text-gray-400 mt-1">One email per line (or comma-separated). These become the leads for this demo campaign.</p>
+          </div>
         </div>
       )}
 

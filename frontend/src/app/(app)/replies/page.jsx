@@ -69,8 +69,18 @@ export default function RepliesPage() {
           {syncing ? "Syncing…" : "Sync replies"}
         </button>
       </div>
+        <p className="text-sm text-gray-500 mt-1">
+          Replies appear here automatically when leads respond to your emails.
+        </p>
+      {replies.length === 0 && (
+        <div className="text-center py-16 text-gray-400 space-y-2">
+          <p className="text-lg font-medium text-gray-500">No replies yet</p>
+          <p className="text-sm">When leads respond to your emails, they&apos;ll show up here — grouped by how interested they seem.</p>
+        </div>
+      )}
       {GROUPS.map((group) => {
         const grouped = replies.filter((r) => group.sentiments.includes(r.sentiment));
+        if (grouped.length === 0) return null;
         return (
           <section key={group.key}>
             <div className="flex items-center gap-2 mb-3">
@@ -78,12 +88,9 @@ export default function RepliesPage() {
               <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${group.badge}`}>{grouped.length}</span>
               <span className="text-xs text-gray-400 italic">{group.action}</span>
             </div>
-            {grouped.length === 0
-              ? <p className="text-sm text-gray-400 pl-1">None.</p>
-              : <div className={`space-y-3 border rounded-lg p-4 ${group.style}`}>
-                  {grouped.map((r) => <ReplyCard key={r.id} reply={r} onApproved={(id) => setReplies(prev => prev.filter(r => r.id !== id))} />)}
-                </div>
-            }
+            <div className={`space-y-3 border rounded-lg p-4 ${group.style}`}>
+              {grouped.map((r) => <ReplyCard key={r.id} reply={r} onApproved={(id) => setReplies(prev => prev.filter(r => r.id !== id))} />)}
+            </div>
           </section>
         );
       })}

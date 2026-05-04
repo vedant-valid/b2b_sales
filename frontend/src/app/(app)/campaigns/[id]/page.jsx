@@ -1,21 +1,43 @@
 "use client";
 import { use, useCallback, useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import FilterPreview from "@/components/FilterPreview";
+import EmailTemplatePanel from "@/components/EmailTemplatePanel";
 import JobProgressBar from "@/components/JobProgressBar";
+import LeadApprovalTable from "@/components/LeadApprovalTable";
 import Link from "next/link";
+import LeadTable from "@/components/LeadTable";
+import StepBar from "@/components/StepBar";
+import ActionCard from "@/components/ActionCard";
+import FilterEditor from "@/components/FilterEditor";
+import { campaignStatusLabel } from "@/lib/campaignStatus";
 
 const DEV_MODE = process.env.NEXT_PUBLIC_DEV_MODE === "true";
 
 export default function CampaignDetailPage({ params }) {
   const { id } = use(params);
   const { data: session } = useSession();
+  const router = useRouter();
   const [campaign, setCampaign] = useState(null);
   const [leads, setLeads] = useState([]);
   const [jobId, setJobId] = useState(null);
   const [error, setError] = useState("");
   const [acting, setActing] = useState(false);
+  const [skippedIds, setSkippedIds] = useState(new Set());
+  const [rowError, setRowError] = useState({});
+  const [unlockError, setUnlockError] = useState("");
+  const [unlocking, setUnlocking] = useState(false);
+  const [testEmail, setTestEmail] = useState("");
+  const [addingTestLead, setAddingTestLead] = useState(false);
+  const [testLeadError, setTestLeadError] = useState("");
+  const [leadTab, setLeadTab] = useState("active");
+  const [editingFilters, setEditingFilters] = useState(false);
+  const [filterDraft, setFilterDraft] = useState("");
+  const [filterError, setFilterError] = useState("");
+  const [rerunning, setRerunning] = useState(false);
+  const [analytics, setAnalytics] = useState(null);
 
   const loadCampaign = useCallback(() => {
     if (!session?.backendToken) return;
@@ -31,10 +53,21 @@ export default function CampaignDetailPage({ params }) {
       .catch(() => {});
   }, [session?.backendToken, id]);
 
+  const loadAnalytics = useCallback(() => {
+    if (!session?.backendToken) return;
+    apiFetch(`/api/campaigns/${id}/analytics`, { token: session.backendToken })
+      .then(({ analytics }) => setAnalytics(analytics))
+      .catch(() => {});
+  }, [session?.backendToken, id]);
+
   useEffect(() => {
     loadCampaign();
     loadLeads();
   }, [loadCampaign, loadLeads]);
+
+  useEffect(() => {
+    if (campaign?.instantlyCampaignId) loadAnalytics();
+  }, [campaign?.instantlyCampaignId, loadAnalytics]);
 
   async function onRun() {
     setError("");
@@ -50,13 +83,87 @@ export default function CampaignDetailPage({ params }) {
     setActing(true);
     setError("");
     try {
+      const body = gate === "approve-leads"
+        ? { approvedIds: leads.filter(l => !skippedIds.has(l.id)).map(l => l.id) }
+        : undefined;
       await apiFetch(`/api/campaigns/${id}/${gate}`, {
-        token: session.backendToken, method: "POST"
+        token: session.backendToken, method: "POST", body
       });
+      setSkippedIds(new Set());
       loadCampaign();
       loadLeads();
     } catch (e) { setError(e.message); }
     finally { setActing(false); }
+  }
+
+  async function onAddTestLead(e) {
+    e.preventDefault();
+    if (!testEmail) return;
+    setAddingTestLead(true);
+    setTestLeadError("");
+    try {
+      await apiFetch(`/api/campaigns/${id}/add-test-lead`, {
+        token: session.backendToken, method: "POST", body: { email: testEmail }
+      });
+      setTestEmail("");
+      loadLeads();
+    } catch (e) {
+      setTestLeadError(e.data?.error === "email_already_in_campaign" ? "Already added" : e.message);
+    } finally { setAddingTestLead(false); }
+  }
+
+  function onSkip(leadId) {
+    setSkippedIds(prev => new Set([...prev, leadId]));
+  }
+
+  function onUndoSkip(leadId) {
+    setSkippedIds(prev => { const n = new Set(prev); n.delete(leadId); return n; });
+  }
+
+  function onLeadStatusChange(leadId, newStatus) {
+    setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, status: newStatus } : l)));
+  }
+
+  async function onRerunWithFilters() {
+    setFilterError("");
+    let filters;
+    try { filters = JSON.parse(filterDraft); } catch {
+      setFilterError("Invalid JSON — check your syntax.");
+      return;
+    }
+    setRerunning(true);
+    try {
+      const { jobId: jid } = await apiFetch(`/api/campaigns/${id}/rerun-with-filters`, {
+        token: session.backendToken, method: "POST", body: { filters }
+      });
+      setEditingFilters(false);
+      setJobId(jid);
+      setLeads([]);
+      loadCampaign();
+    } catch (e) { setFilterError(e.message); }
+    finally { setRerunning(false); }
+  }
+
+  async function onUnlockLeads() {
+    setUnlocking(true);
+    setUnlockError("");
+    const selectedIds = leads.filter(l => !skippedIds.has(l.id)).map(l => l.id);
+    try {
+      await apiFetch(`/api/campaigns/${id}/select-leads`, {
+        token: session.backendToken, method: "POST", body: { leadIds: selectedIds }
+      });
+      await apiFetch(`/api/campaigns/${id}/unlock-leads`, {
+        token: session.backendToken, method: "POST"
+      });
+      setSkippedIds(new Set());
+      loadCampaign();
+      loadLeads();
+    } catch (e) {
+      const msg = e.data?.error === "insufficient_credits"
+        ? `Not enough credits — need ${e.data.required}, have ${e.data.available}`
+        : e.message;
+      setUnlockError(msg);
+    } finally { setUnlocking(false); }
   }
 
   async function onSyncStatus() {
@@ -83,6 +190,14 @@ export default function CampaignDetailPage({ params }) {
     finally { setActing(false); }
   }
 
+  async function onDelete() {
+    if (!confirm(`Delete "${campaign.name}"? This will permanently remove all leads, emails, and replies. This cannot be undone.`)) return;
+    try {
+      await apiFetch(`/api/campaigns/${id}`, { token: session.backendToken, method: "DELETE" });
+      router.push("/campaigns");
+    } catch (e) { setError(e.message); }
+  }
+
   if (!campaign) return <p>Loading...</p>;
 
   const isViewer = session?.user?.role === "VIEWER";
@@ -101,68 +216,30 @@ export default function CampaignDetailPage({ params }) {
         </div>
       )}
 
-      <div className="flex justify-between items-start">
-        <div>
-          <h1 className="text-xl font-bold">{campaign.name}</h1>
-          <p className="text-sm text-gray-600">Status: {campaign.status}</p>
+      <div className="space-y-4">
+        <div className="flex justify-between items-start">
+          <div>
+            <h1 className="text-xl font-bold">{campaign.name}</h1>
+            <p className="text-sm text-gray-500">{campaignStatusLabel(campaign.status)}</p>
+          </div>
+          <div className="flex gap-2 items-center">
+            {!isViewer && campaign.status === "DRAFT" && (
+              <button onClick={onRun} className="bg-black text-white px-3 py-2 rounded text-sm">
+                Run campaign
+              </button>
+            )}
+            {!isViewer && (
+              <button
+                onClick={onDelete}
+                className="text-xs text-red-500 hover:text-red-700 border border-red-200 hover:border-red-400 px-2 py-1.5 rounded transition-colors"
+              >
+                Delete
+              </button>
+            )}
+          </div>
         </div>
-        {!isViewer && campaign.status === "DRAFT" && (
-          <button onClick={onRun} className="bg-black text-white px-3 py-2 rounded text-sm">
-            Run campaign
-          </button>
-        )}
+        <StepBar status={campaign.status} />
       </div>
-
-      {campaign.status === "AWAITING_LEAD_APPROVAL" && !isViewer && (
-        <div className="border border-yellow-400 bg-yellow-50 rounded p-4 space-y-2">
-          <p className="font-semibold text-yellow-800">
-            {campaign._count?.leads ?? 0} leads fetched — review below then approve or reject.
-          </p>
-          <div className="flex gap-2">
-            <button
-              onClick={() => onAction("approve-leads")}
-              disabled={acting}
-              className="bg-green-600 text-white px-4 py-2 rounded text-sm disabled:opacity-50"
-            >
-              Approve — generate emails
-            </button>
-            <button
-              onClick={() => onAction("reject-leads")}
-              disabled={acting}
-              className="bg-red-600 text-white px-4 py-2 rounded text-sm disabled:opacity-50"
-            >
-              Reject — discard &amp; reset
-            </button>
-          </div>
-        </div>
-      )}
-
-      {campaign.status === "AWAITING_EMAIL_APPROVAL" && !isViewer && (
-        <div className="border border-blue-400 bg-blue-50 rounded p-4 space-y-2">
-          <p className="font-semibold text-blue-800">
-            Emails generated — review drafts below then approve to launch or reject to reset.
-          </p>
-          <div className="flex gap-2">
-            <button
-              onClick={() => onAction("approve-emails")}
-              disabled={acting}
-              className="bg-green-600 text-white px-4 py-2 rounded text-sm disabled:opacity-50"
-            >
-              Approve &amp; launch
-            </button>
-            <button
-              onClick={() => onAction("reject-emails")}
-              disabled={acting}
-              className="bg-red-600 text-white px-4 py-2 rounded text-sm disabled:opacity-50"
-            >
-              Reject — discard &amp; reset
-            </button>
-          </div>
-        </div>
-      )}
-
-      {jobId && <JobProgressBar jobId={jobId} />}
-      {error && <p className="text-red-600 text-sm">{error}</p>}
 
       <div>
         <h2 className="font-semibold mb-1">Raw goal</h2>
@@ -173,64 +250,190 @@ export default function CampaignDetailPage({ params }) {
         <FilterPreview filters={campaign.extractedFilters} />
       </div>
 
-      <div>
-        <div className="flex justify-between items-center mb-2">
-          <h2 className="font-semibold">Leads ({leads.length})</h2>
-          <div className="flex gap-2 items-center">
-          {campaign.status === "RUNNING" && !isViewer && (
-            <button
-              onClick={onSyncStatus}
-              disabled={acting}
-              className="text-xs border border-gray-400 text-gray-700 bg-white px-2 py-1 rounded disabled:opacity-50"
-            >
-              Sync Status
-            </button>
-          )}
-          {DEV_MODE && !isViewer && (
-            <button
-              onClick={onSeedDevLead}
-              disabled={acting}
-              className="text-xs border border-yellow-500 text-yellow-700 bg-yellow-50 px-2 py-1 rounded disabled:opacity-50"
-            >
-              + Add test lead (dev)
-            </button>
-          )}
+      {!isViewer && (
+        <EmailTemplatePanel
+          campaignId={id}
+          token={session?.backendToken}
+        />
+      )}
+
+      {!isViewer && (
+        <ActionCard
+          campaign={campaign}
+          leads={leads}
+          skippedIds={skippedIds}
+          unlocking={unlocking}
+          acting={acting}
+          unlockError={unlockError}
+          onUnlockLeads={onUnlockLeads}
+          onAction={onAction}
+        />
+      )}
+
+      {analytics && campaign.status === "RUNNING" && (
+        <div className="border border-gray-200 rounded-lg p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="font-semibold text-sm">Instantly Analytics</h2>
+            <button onClick={loadAnalytics} className="text-xs text-gray-400 hover:text-gray-600">Refresh</button>
+          </div>
+          <div className="grid grid-cols-3 gap-3 sm:grid-cols-6">
+            {[
+              { label: "Total Leads", value: analytics.total_leads ?? analytics.leads_count ?? "—" },
+              { label: "Contacted", value: analytics.contacted_leads ?? analytics.completed ?? "—" },
+              { label: "In Progress", value: analytics.in_progress ?? "—" },
+              { label: "Not Yet Sent", value: analytics.not_contacted ?? "—" },
+              { label: "Sent", value: analytics.emails_sent ?? analytics.sent_count ?? "—" },
+              { label: "Replied", value: analytics.reply_count ?? analytics.replies ?? "—" },
+            ].map(({ label, value }) => (
+              <div key={label} className="bg-gray-50 rounded p-2 text-center">
+                <p className="text-lg font-semibold text-gray-900">{value}</p>
+                <p className="text-xs text-gray-500 mt-0.5">{label}</p>
+              </div>
+            ))}
           </div>
         </div>
-        {leads.length === 0 ? (
-          <p className="text-sm text-gray-500">No leads yet.</p>
-        ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left border-b">
-                <th className="pb-1">Name</th>
-                <th>Title</th>
-                <th>Company</th>
-                <th>Email</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {leads.map((l) => (
-                <tr key={l.id} className={`border-b hover:bg-gray-50 ${l.email === "madnevedant15@gmail.com" && DEV_MODE ? "bg-yellow-50" : ""}`}>
-                  <td className="py-2">
-                    <Link className="underline" href={`/leads/${l.id}`}>
-                      {l.firstName} {l.lastName}
-                      {l.email === "madnevedant15@gmail.com" && DEV_MODE && (
-                        <span className="ml-1 text-xs text-yellow-700 font-mono">[DEV]</span>
-                      )}
-                    </Link>
-                  </td>
-                  <td>{l.title}</td>
-                  <td>{l.company}</td>
-                  <td>{l.email}</td>
-                  <td>{l.status}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+      )}
+
+      {["AWAITING_LEAD_SELECTION", "AWAITING_LEAD_APPROVAL"].includes(campaign.status) && leads.length > 0 && (
+        <LeadApprovalTable
+          leads={leads}
+          skippedIds={skippedIds}
+          onSkip={onSkip}
+          onUndoSkip={onUndoSkip}
+          rowError={rowError}
+        />
+      )}
+
+      {campaign.status === "AWAITING_LEAD_SELECTION" && !isViewer && (
+        <div className="border border-gray-200 rounded-lg p-4">
+          <button
+            onClick={() => {
+              setFilterDraft(JSON.stringify(campaign.extractedFilters, null, 2));
+              setFilterError("");
+              setEditingFilters(v => !v);
+            }}
+            className="text-sm text-gray-600 underline"
+          >
+            {editingFilters ? "Cancel" : "Not happy with these leads? Edit filters and re-run →"}
+          </button>
+          {editingFilters && (
+            <FilterEditor
+              initialFilters={campaign.extractedFilters}
+              onRerun={async (filters) => {
+                setFilterError("");
+                setRerunning(true);
+                try {
+                  const { jobId: jid } = await apiFetch(`/api/campaigns/${id}/rerun-with-filters`, {
+                    token: session.backendToken, method: "POST", body: { filters }
+                  });
+                  setEditingFilters(false);
+                  setJobId(jid);
+                  setLeads([]);
+                  loadCampaign();
+                } catch (e) { setFilterError(e.message); }
+                finally { setRerunning(false); }
+              }}
+              rerunning={rerunning}
+            />
+          )}
+          {filterError && <p className="text-xs text-red-600 mt-2">{filterError}</p>}
+        </div>
+      )}
+
+      {jobId && <JobProgressBar jobId={jobId} onComplete={() => { loadCampaign(); loadLeads(); }} />}
+      {error && <p className="text-red-600 text-sm">{error}</p>}
+
+      {!["AWAITING_LEAD_APPROVAL", "AWAITING_LEAD_SELECTION"].includes(campaign.status) && (
+        <div className="space-y-3">
+          <div className="flex justify-between items-center">
+            <h2 className="font-semibold">Leads</h2>
+            <div className="flex gap-2 items-center">
+              {campaign.status === "RUNNING" && !isViewer && (
+                <button
+                  onClick={onSyncStatus}
+                  disabled={acting}
+                  className="text-xs border border-gray-400 text-gray-700 bg-white px-2 py-1 rounded disabled:opacity-50"
+                >
+                  Sync Status
+                </button>
+              )}
+              {DEV_MODE && !isViewer && (
+                <button
+                  onClick={onSeedDevLead}
+                  disabled={acting}
+                  className="text-xs border border-yellow-500 text-yellow-700 bg-yellow-50 px-2 py-1 rounded disabled:opacity-50"
+                >
+                  + Add test lead (dev)
+                </button>
+              )}
+            </div>
+          </div>
+
+          {leads.length === 0 ? (
+            <p className="text-sm text-gray-500">No leads yet.</p>
+          ) : (
+            <>
+              <div className="flex gap-0 border-b">
+                {["active", "irrelevant"].map((t) => {
+                  const count = t === "active"
+                    ? leads.filter((l) => l.status !== "SKIPPED").length
+                    : leads.filter((l) => l.status === "SKIPPED").length;
+                  const countCls = t === "irrelevant" ? "bg-orange-100 text-orange-600" : "bg-gray-100 text-gray-600";
+                  return (
+                    <button
+                      key={t}
+                      onClick={() => setLeadTab(t)}
+                      className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                        leadTab === t ? "border-black text-black" : "border-transparent text-gray-500 hover:text-gray-700"
+                      }`}
+                    >
+                      {t === "active" ? "Active" : "Irrelevant"}{" "}
+                      <span className={`ml-1 text-xs px-1.5 py-0.5 rounded-full ${countCls}`}>{count}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {leadTab === "active" && (
+                <LeadTable
+                  leads={leads.filter((l) => l.status !== "SKIPPED")}
+                  token={!isViewer ? session?.backendToken : undefined}
+                  onStatusChange={!isViewer ? onLeadStatusChange : undefined}
+                />
+              )}
+              {leadTab === "irrelevant" && (
+                leads.filter((l) => l.status === "SKIPPED").length === 0
+                  ? <p className="text-sm text-gray-400">No irrelevant leads.</p>
+                  : <LeadTable
+                      leads={leads.filter((l) => l.status === "SKIPPED")}
+                      token={!isViewer ? session?.backendToken : undefined}
+                      onStatusChange={!isViewer ? onLeadStatusChange : undefined}
+                    />
+              )}
+            </>
+          )}
+
+          {campaign.mode === "TEST" && !isViewer && (
+            <form onSubmit={onAddTestLead} className="mt-3 flex items-center gap-2">
+              <input
+                type="email"
+                placeholder="Add test email address…"
+                value={testEmail}
+                onChange={(e) => { setTestEmail(e.target.value); setTestLeadError(""); }}
+                className="border border-gray-300 rounded px-3 py-1.5 text-sm w-72 focus:outline-none focus:border-gray-500"
+              />
+              <button
+                type="submit"
+                disabled={addingTestLead || !testEmail}
+                className="text-sm bg-black text-white px-3 py-1.5 rounded disabled:opacity-40"
+              >
+                {addingTestLead ? "Adding…" : "+ Add"}
+              </button>
+              {testLeadError && <span className="text-xs text-red-500">{testLeadError}</span>}
+            </form>
+          )}
+        </div>
+      )}
     </div>
   );
 }

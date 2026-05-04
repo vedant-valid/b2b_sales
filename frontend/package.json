@@ -3,26 +3,27 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -p 3000",
+    "dev": "next dev --turbopack -p 3000",
     "build": "next build",
     "start": "next start -p 3000",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "test": "node_modules/.bin/vitest run",
+    "test:watch": "node_modules/.bin/vitest"
   },
   "dependencies": {
+    "esbuild": "^0.21.5",
     "next": "15.5.15",
+    "next-auth": "^4.24.7",
     "react": "19.0.0",
-    "react-dom": "19.0.0",
-    "next-auth": "^4.24.7"
+    "react-dom": "19.0.0"
   },
   "devDependencies": {
-    "vitest": "^2.0.5",
-    "@vitejs/plugin-react": "^4.3.1",
-    "@testing-library/react": "^16.0.0",
-    "@testing-library/jest-dom": "^6.4.8",
-    "jsdom": "^24.1.1",
-    "tailwindcss": "^4.0.0",
     "@tailwindcss/postcss": "^4.0.0",
-    "postcss": "^8.4.41"
+    "@testing-library/jest-dom": "^6.4.8",
+    "@testing-library/react": "^16.0.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "jsdom": "^24.1.1",
+    "postcss": "^8.4.41",
+    "tailwindcss": "^4.0.0",
+    "vitest": "^2.0.5"
   }
 }

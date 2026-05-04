@@ -3,7 +3,11 @@ import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/auth.js";
 import { requireRole } from "../middleware/rbac.js";
 import { getBoss } from "../lib/pgboss.js";
-import { createCampaign, pushLeads, activateCampaign } from "../services/instantly.js";
+import { createCampaign as realCreateCampaign, pushLeads as realPushLeads, activateCampaign as realActivateCampaign } from "../services/instantly.js";
+
+let instantly = null; // injected by server.js; null = skip Instantly (tests)
+export function __setInstantlyImpl(impl) { instantly = impl; }
+export const realInstantly = { createCampaign: realCreateCampaign, pushLeads: realPushLeads, activateCampaign: realActivateCampaign };
 
 const router = Router();
 router.use(requireAuth);
@@ -45,53 +49,52 @@ router.post("/emails/:id/send", requireRole("ADMIN", "MANAGER"), async (req, res
     if (!email) return res.status(404).json({ error: "not_found" });
     if (!email.lead.email) return res.status(400).json({ error: "lead_has_no_email" });
 
-    const campaign = await prisma.campaign.findUnique({ where: { id: email.lead.campaignId } });
-    if (!campaign) return res.status(400).json({ error: "campaign_not_found" });
+    if (instantly) {
+      const campaign = await prisma.campaign.findUnique({ where: { id: email.lead.campaignId } });
+      if (!campaign) return res.status(400).json({ error: "campaign_not_found" });
 
-    // Get or create the Instantly campaign
-    let instantlyCampaignId = campaign.instantlyCampaignId;
-    try {
-      if (!instantlyCampaignId) {
-        const out = await createCampaign(campaign.name);
-        instantlyCampaignId = out.instantlyCampaignId;
-        await prisma.campaign.update({
-          where: { id: campaign.id },
-          data: { instantlyCampaignId, status: "RUNNING" }
-        });
+      let instantlyCampaignId = campaign.instantlyCampaignId;
+      try {
+        if (!instantlyCampaignId) {
+          const out = await instantly.createCampaign(campaign.name);
+          instantlyCampaignId = out.instantlyCampaignId;
+          await prisma.campaign.update({
+            where: { id: campaign.id },
+            data: { instantlyCampaignId, status: "RUNNING" }
+          });
+        }
+
+        const result = await instantly.pushLeads(instantlyCampaignId, [{
+          email: email.lead.email,
+          firstName: email.lead.firstName,
+          lastName: email.lead.lastName,
+          company: email.lead.company,
+          subject: email.subject,
+          body: email.body,
+          _leadId: email.lead.id,
+          _emailId: email.id
+        }]);
+
+        await instantly.activateCampaign(instantlyCampaignId);
+
+        const rejected = new Set((result.rejected || []).map((r) => r.email));
+        if (rejected.has(email.lead.email)) {
+          const updated = await prisma.email.update({ where: { id: email.id }, data: { status: "FAILED" } });
+          return res.status(422).json({ error: "instantly_rejected", email: updated });
+        }
+      } catch (instantlyErr) {
+        const msg = instantlyErr.message || "";
+        if (msg.includes("_401") || msg.includes("_403")) {
+          return res.status(502).json({ error: "instantly_auth_failed", detail: "Instantly API key is invalid or expired. Update INSTANTLY_API_KEY in backend/.env." });
+        }
+        return res.status(502).json({ error: "instantly_error", detail: msg });
       }
-
-      // Push this lead to Instantly
-      const result = await pushLeads(instantlyCampaignId, [{
-        email: email.lead.email,
-        firstName: email.lead.firstName,
-        lastName: email.lead.lastName,
-        company: email.lead.company,
-        subject: email.subject,
-        body: email.body,
-        _leadId: email.lead.id,
-        _emailId: email.id
-      }]);
-
-      // Activate the campaign so Instantly starts sending
-      await activateCampaign(instantlyCampaignId);
-
-      const rejected = new Set((result.rejected || []).map((r) => r.email));
-      if (rejected.has(email.lead.email)) {
-        const updated = await prisma.email.update({ where: { id: email.id }, data: { status: "FAILED" } });
-        return res.status(422).json({ error: "instantly_rejected", email: updated });
-      }
-    } catch (instantlyErr) {
-      const msg = instantlyErr.message || "";
-      if (msg.includes("_401") || msg.includes("_403")) {
-        return res.status(502).json({ error: "instantly_auth_failed", detail: "Instantly API key is invalid or expired. Update INSTANTLY_API_KEY in backend/.env." });
-      }
-      return res.status(502).json({ error: "instantly_error", detail: msg });
     }
 
-    const updated = await prisma.email.update({
-      where: { id: email.id },
-      data: { status: "SENT", sentAt: new Date() }
-    });
+    const [updated] = await prisma.$transaction([
+      prisma.email.update({ where: { id: email.id }, data: { status: "SENT", sentAt: new Date() } }),
+      prisma.lead.update({ where: { id: email.lead.id }, data: { status: "CONTACTED" } })
+    ]);
     res.json({ email: updated });
   } catch (e) { next(e); }
 });

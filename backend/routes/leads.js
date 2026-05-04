@@ -38,7 +38,8 @@ router.get("/:id", async (req, res, next) => {
 });
 
 const patchSchema = z.object({
-  status: z.enum(["NEW","CONTACTED","REPLIED","INTERESTED","NOT_INTERESTED","NEUTRAL","CONVERTIBLE","SKIPPED"]).optional()
+  status: z.enum(["NEW","CONTACTED","REPLIED","INTERESTED","NOT_INTERESTED","NEUTRAL","CONVERTIBLE","SKIPPED"]).optional(),
+  notes: z.string().optional()
 });
 
 router.patch("/:id", requireRole("ADMIN", "MANAGER"), async (req, res, next) => {

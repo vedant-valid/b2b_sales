@@ -42,7 +42,6 @@ const SIZE_RANGES = {
   "1001-5000": { min: 1001, max: 5000 },
   "5001-10000": { min: 5001, max: 10000 },
   "10001+": { min: 10001 },
-  // Natural language
   "startup": { min: 1, max: 200 },
   "small": { min: 1, max: 200 },
   "medium": { min: 201, max: 1000 },
@@ -54,6 +53,7 @@ const SIZE_RANGES = {
 function buildLushaBody(geminiFilters, page = 0, size = 25) {
   const contactsInclude = {};
   const companiesInclude = {};
+  const companiesExclude = {};
 
   if (geminiFilters.departments?.length) {
     contactsInclude.departments = geminiFilters.departments;
@@ -83,11 +83,18 @@ function buildLushaBody(geminiFilters, page = 0, size = 25) {
     if (sizes.length) companiesInclude.sizes = sizes;
   }
 
+  if (geminiFilters.excludeIndustries?.length) {
+    companiesExclude.industries = geminiFilters.excludeIndustries;
+  }
+
   return {
     pages: { page, size },
     filters: {
       contacts: { include: contactsInclude },
-      companies: { include: companiesInclude }
+      companies: {
+        include: companiesInclude,
+        ...(Object.keys(companiesExclude).length ? { exclude: companiesExclude } : {})
+      }
     }
   };
 }
@@ -103,11 +110,12 @@ function normalizeName(fullName = "") {
 function normalizeEnriched(contact) {
   const d = contact.data || {};
   const emailEntry = (d.emailAddresses || []).find(e => e.emailType === "work") || d.emailAddresses?.[0];
+  const rawEmail = emailEntry?.email || null;
   return {
     lushaContactId: contact.id,
     firstName: d.firstName || "",
     lastName: d.lastName || "",
-    email: emailEntry?.email || null,
+    email: rawEmail && !rawEmail.startsWith("...") ? rawEmail : null,
     phone: d.phoneNumbers?.[0]?.number || null,
     title: d.jobTitle || null,
     company: d.companyName || null,
@@ -119,43 +127,58 @@ function normalizeEnriched(contact) {
 }
 
 /**
- * Search Lusha for leads matching geminiFilters, then batch-enrich to get emails.
- * Returns an array of fully enriched lead objects ready to store.
+ * Phase 1 — free. Calls /contact/search only. No credits consumed.
+ * Returns basic lead info + requestId (needed to call enrichLeads later).
  */
-export async function searchLeads(geminiFilters, opts = {}) {
+export async function searchLeadsBasic(geminiFilters, opts = {}) {
   const body = buildLushaBody(geminiFilters, 0, 25);
 
-  const searchRes = await requestWithRetry(`${BASE}/prospecting/contact/search`, {
+  const res = await requestWithRetry(`${BASE}/prospecting/contact/search`, {
     method: "POST",
     headers: headers(),
     body: JSON.stringify(body)
   }, opts);
 
-  if (!searchRes.ok) {
-    const err = await searchRes.json().catch(() => ({}));
-    throw new Error(`lusha_search_failed_${searchRes.status}: ${err.message || ""}`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(`lusha_search_failed_${res.status}: ${err.message || ""}`);
   }
 
-  const searchJson = await searchRes.json();
-  const requestId = searchJson.requestId;
-  const rawContacts = searchJson.data || [];
+  const json = await res.json();
+  const requestId = json.requestId;
+  const rawContacts = json.data || [];
 
-  if (rawContacts.length === 0) return [];
+  return rawContacts.map(c => {
+    const { firstName, lastName } = normalizeName(c.name);
+    return {
+      lushaContactId: c.contactId,
+      firstName,
+      lastName,
+      title: c.jobTitle || null,
+      company: c.companyName || null,
+      requestId
+    };
+  });
+}
 
-  // Batch enrich to get emails and full details
-  const contactIds = rawContacts.map(c => c.contactId).filter(Boolean);
-  const enrichRes = await requestWithRetry(`${BASE}/prospecting/contact/enrich`, {
+/**
+ * Phase 2 — paid. Calls /contact/enrich. Credits consumed here only.
+ * requestId must be the one returned by the search that found these contacts.
+ * Returns fully enriched lead objects (email, phone, etc.).
+ */
+export async function enrichLeads(requestId, contactIds, opts = {}) {
+  const res = await requestWithRetry(`${BASE}/prospecting/contact/enrich`, {
     method: "POST",
     headers: headers(),
     body: JSON.stringify({ requestId, contactIds })
   }, opts);
 
-  if (!enrichRes.ok) {
-    const err = await enrichRes.json().catch(() => ({}));
-    throw new Error(`lusha_enrich_failed_${enrichRes.status}: ${err.message || ""}`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(`lusha_enrich_failed_${res.status}: ${err.message || ""}`);
   }
 
-  const enrichJson = await enrichRes.json();
-  const enriched = (enrichJson.contacts || []).filter(c => c.isSuccess);
+  const json = await res.json();
+  const enriched = (json.contacts || []).filter(c => c.isSuccess);
   return enriched.map(normalizeEnriched);
 }
