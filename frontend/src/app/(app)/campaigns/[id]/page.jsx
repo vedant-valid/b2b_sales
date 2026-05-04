@@ -238,6 +238,16 @@ export default function CampaignDetailPage({ params }) {
         />
       )}
 
+      {["AWAITING_LEAD_SELECTION", "AWAITING_LEAD_APPROVAL"].includes(campaign.status) && leads.length > 0 && (
+        <LeadApprovalTable
+          leads={leads}
+          skippedIds={skippedIds}
+          onSkip={onSkip}
+          onUndoSkip={onUndoSkip}
+          rowError={rowError}
+        />
+      )}
+
       {campaign.status === "AWAITING_LEAD_SELECTION" && !isViewer && (
         <div className="border border-gray-200 rounded-lg p-4">
           <button
