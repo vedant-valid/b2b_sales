@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { verifyPassword, signToken } from "../lib/auth.js";
+import { requireAuth } from "../middleware/auth.js";
 
 const router = Router();
 
@@ -26,5 +27,14 @@ router.post("/login", async (req, res, next) => {
 });
 
 router.post("/logout", (_req, res) => res.json({ ok: true }));
+
+router.get("/me", requireAuth, async (req, res, next) => {
+  try {
+    const user = await prisma.user.findUnique({ where: { id: req.user.sub } });
+    if (!user) return res.status(404).json({ error: "not_found" });
+    const { password: _p, ...safe } = user;
+    res.json({ user: safe });
+  } catch (e) { next(e); }
+});
 
 export default router;

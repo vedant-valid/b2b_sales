@@ -69,7 +69,7 @@ Add icons before each label (Unicode or simple SVG — no icon library install):
 
 Header currently shows `email · ROLE`. Change to `email · ROLE · Credits: N`.
 
-Credits come from `GET /api/users/me` (already exists). Fetch on mount, display in header. If unavailable, omit the credits portion silently.
+Credits come from `GET /api/auth/me` (added as part of this feature — returns the authenticated user's full profile including credits). Fetch on mount in the layout, display in header. If unavailable, omit the credits portion silently.
 
 ---
 
