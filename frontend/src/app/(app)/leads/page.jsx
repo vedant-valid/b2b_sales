@@ -35,6 +35,17 @@ export default function LeadsPage() {
   return (
     <div className="space-y-6">
       <h1 className="text-xl font-bold">Leads</h1>
+      <p className="text-sm text-gray-500 -mt-4">
+        These are the people your campaigns are reaching out to. Use the tabs to focus on what needs action.
+      </p>
+
+      {leads.length === 0 && (
+        <div className="text-center py-16 text-gray-500 space-y-3">
+          <p className="text-lg font-medium">No leads yet</p>
+          <p className="text-sm">Run a campaign to start finding people to reach out to.</p>
+          <a href="/campaigns" className="inline-block text-sm underline text-gray-700 mt-1">Go to Campaigns →</a>
+        </div>
+      )}
 
       {/* Tab bar */}
       <div className="flex gap-0 border-b">
@@ -44,7 +55,7 @@ export default function LeadsPage() {
 
       {tab === "active" && (
         <div className="space-y-8">
-          <Section title="Outreach" count={activeOutreach.length} countCls="bg-gray-100 text-gray-600" empty="No outreach leads yet.">
+          <Section title="Outreach" count={activeOutreach.length} countCls="bg-gray-100 text-gray-600" empty="No outreach leads yet — run a campaign to start finding people.">
             {activeOutreach.length > 0 && (
               <LeadTable leads={activeOutreach} token={!isViewer ? session?.backendToken : undefined} onStatusChange={!isViewer ? onStatusChange : undefined} />
             )}
