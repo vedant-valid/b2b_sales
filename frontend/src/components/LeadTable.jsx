@@ -1,3 +1,4 @@
+"use client";
 import Link from "next/link";
 import LeadStatusBadge from "./LeadStatusBadge";
 import LeadRowActions from "./LeadRowActions";
