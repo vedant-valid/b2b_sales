@@ -342,6 +342,42 @@ router.post("/:id/add-test-lead", requireRole("ADMIN", "MANAGER"), async (req, r
   } catch (e) { next(e); }
 });
 
+// ─── Re-run with edited filters (from AWAITING_LEAD_SELECTION) ───────────────
+
+const rerunFiltersSchema = z.object({
+  filters: z.record(z.unknown())
+});
+
+router.post("/:id/rerun-with-filters", requireRole("ADMIN", "MANAGER"), async (req, res, next) => {
+  try {
+    const campaign = await prisma.campaign.findUnique({ where: { id: req.params.id } });
+    if (!campaign) return res.status(404).json({ error: "not_found" });
+    if (campaign.status !== "AWAITING_LEAD_SELECTION") return res.status(409).json({ error: "invalid_status" });
+
+    const parsed = rerunFiltersSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: "invalid_input" });
+    const { filters } = parsed.data;
+
+    // Delete existing PREVIEW leads and their selections
+    const existingLeads = await prisma.lead.findMany({ where: { campaignId: campaign.id }, select: { id: true } });
+    const leadIds = existingLeads.map(l => l.id);
+    if (leadIds.length > 0) {
+      await prisma.leadSelection.deleteMany({ where: { leadId: { in: leadIds } } });
+      await prisma.lead.deleteMany({ where: { id: { in: leadIds } } });
+    }
+
+    // Update filters and reset status so fetch-leads can re-run
+    await prisma.campaign.update({
+      where: { id: campaign.id },
+      data: { extractedFilters: filters, status: "DRAFT" }
+    });
+
+    const boss = await getBoss();
+    const jobId = await boss.send("fetch-leads", { campaignId: campaign.id });
+    res.json({ jobId });
+  } catch (e) { next(e); }
+});
+
 // ─── Phase 2: Lead Selection ──────────────────────────────────────────────────
 
 const selectLeadsSchema = z.object({

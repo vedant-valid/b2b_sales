@@ -27,6 +27,10 @@ export default function CampaignDetailPage({ params }) {
   const [addingTestLead, setAddingTestLead] = useState(false);
   const [testLeadError, setTestLeadError] = useState("");
   const [leadTab, setLeadTab] = useState("active");
+  const [editingFilters, setEditingFilters] = useState(false);
+  const [filterDraft, setFilterDraft] = useState("");
+  const [filterError, setFilterError] = useState("");
+  const [rerunning, setRerunning] = useState(false);
 
   const loadCampaign = useCallback(() => {
     if (!session?.backendToken) return;
@@ -100,6 +104,26 @@ export default function CampaignDetailPage({ params }) {
 
   function onLeadStatusChange(leadId, newStatus) {
     setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, status: newStatus } : l)));
+  }
+
+  async function onRerunWithFilters() {
+    setFilterError("");
+    let filters;
+    try { filters = JSON.parse(filterDraft); } catch {
+      setFilterError("Invalid JSON — check your syntax.");
+      return;
+    }
+    setRerunning(true);
+    try {
+      const { jobId: jid } = await apiFetch(`/api/campaigns/${id}/rerun-with-filters`, {
+        token: session.backendToken, method: "POST", body: { filters }
+      });
+      setEditingFilters(false);
+      setJobId(jid);
+      setLeads([]);
+      loadCampaign();
+    } catch (e) { setFilterError(e.message); }
+    finally { setRerunning(false); }
   }
 
   async function onUnlockLeads() {
@@ -211,6 +235,37 @@ export default function CampaignDetailPage({ params }) {
               rowError={rowError}
             />
           )}
+          <div className="pt-1">
+            <button
+              onClick={() => {
+                setFilterDraft(JSON.stringify(campaign.extractedFilters, null, 2));
+                setFilterError("");
+                setEditingFilters(v => !v);
+              }}
+              className="text-xs text-purple-700 underline"
+            >
+              {editingFilters ? "Cancel filter edit" : "Edit filters & re-run"}
+            </button>
+            {editingFilters && (
+              <div className="mt-2 space-y-2">
+                <textarea
+                  value={filterDraft}
+                  onChange={e => setFilterDraft(e.target.value)}
+                  rows={10}
+                  className="w-full border border-gray-300 rounded px-3 py-2 text-xs font-mono focus:outline-none focus:border-gray-500"
+                />
+                {filterError && <p className="text-xs text-red-600">{filterError}</p>}
+                <button
+                  onClick={onRerunWithFilters}
+                  disabled={rerunning}
+                  className="bg-purple-700 text-white px-4 py-2 rounded text-sm disabled:opacity-50"
+                >
+                  {rerunning ? "Re-running…" : "Re-run with these filters"}
+                </button>
+              </div>
+            )}
+          </div>
+
           <div className="flex gap-2 items-center pt-1 flex-wrap">
             <button
               onClick={onUnlockLeads}
