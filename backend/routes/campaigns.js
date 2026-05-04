@@ -6,6 +6,7 @@ import { requireRole } from "../middleware/rbac.js";
 import { extractFilters as realExtractFilters } from "../services/prompt.js";
 import { enrichLeads as realEnrichLeads } from "../services/lusha.js";
 import { generateText } from "../services/gemini.js";
+import { getCampaignAnalytics } from "../services/instantly.js";
 import { getBoss } from "../lib/pgboss.js";
 import { env } from "../config/env.js";
 import { logger } from "../lib/logger.js";
@@ -273,6 +274,16 @@ router.post("/:id/reject-emails", requireRole("ADMIN", "MANAGER"), async (req, r
     await prisma.lead.deleteMany({ where: { id: { in: leadIds } } });
     await prisma.campaign.update({ where: { id: campaign.id }, data: { status: "DRAFT" } });
     res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+router.get("/:id/analytics", requireRole("ADMIN", "MANAGER", "VIEWER"), async (req, res, next) => {
+  try {
+    const campaign = await prisma.campaign.findUnique({ where: { id: req.params.id } });
+    if (!campaign) return res.status(404).json({ error: "not_found" });
+    if (!campaign.instantlyCampaignId) return res.json({ analytics: null });
+    const analytics = await getCampaignAnalytics(campaign.instantlyCampaignId);
+    res.json({ analytics });
   } catch (e) { next(e); }
 });
 

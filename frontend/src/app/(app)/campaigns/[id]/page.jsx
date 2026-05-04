@@ -37,6 +37,7 @@ export default function CampaignDetailPage({ params }) {
   const [filterDraft, setFilterDraft] = useState("");
   const [filterError, setFilterError] = useState("");
   const [rerunning, setRerunning] = useState(false);
+  const [analytics, setAnalytics] = useState(null);
 
   const loadCampaign = useCallback(() => {
     if (!session?.backendToken) return;
@@ -52,10 +53,21 @@ export default function CampaignDetailPage({ params }) {
       .catch(() => {});
   }, [session?.backendToken, id]);
 
+  const loadAnalytics = useCallback(() => {
+    if (!session?.backendToken) return;
+    apiFetch(`/api/campaigns/${id}/analytics`, { token: session.backendToken })
+      .then(({ analytics }) => setAnalytics(analytics))
+      .catch(() => {});
+  }, [session?.backendToken, id]);
+
   useEffect(() => {
     loadCampaign();
     loadLeads();
   }, [loadCampaign, loadLeads]);
+
+  useEffect(() => {
+    if (campaign?.instantlyCampaignId) loadAnalytics();
+  }, [campaign?.instantlyCampaignId, loadAnalytics]);
 
   async function onRun() {
     setError("");
@@ -256,6 +268,30 @@ export default function CampaignDetailPage({ params }) {
           onUnlockLeads={onUnlockLeads}
           onAction={onAction}
         />
+      )}
+
+      {analytics && campaign.status === "RUNNING" && (
+        <div className="border border-gray-200 rounded-lg p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="font-semibold text-sm">Instantly Analytics</h2>
+            <button onClick={loadAnalytics} className="text-xs text-gray-400 hover:text-gray-600">Refresh</button>
+          </div>
+          <div className="grid grid-cols-3 gap-3 sm:grid-cols-6">
+            {[
+              { label: "Total Leads", value: analytics.total_leads ?? analytics.leads_count ?? "—" },
+              { label: "Contacted", value: analytics.contacted_leads ?? analytics.completed ?? "—" },
+              { label: "In Progress", value: analytics.in_progress ?? "—" },
+              { label: "Not Yet Sent", value: analytics.not_contacted ?? "—" },
+              { label: "Sent", value: analytics.emails_sent ?? analytics.sent_count ?? "—" },
+              { label: "Replied", value: analytics.reply_count ?? analytics.replies ?? "—" },
+            ].map(({ label, value }) => (
+              <div key={label} className="bg-gray-50 rounded p-2 text-center">
+                <p className="text-lg font-semibold text-gray-900">{value}</p>
+                <p className="text-xs text-gray-500 mt-0.5">{label}</p>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
 
       {["AWAITING_LEAD_SELECTION", "AWAITING_LEAD_APPROVAL"].includes(campaign.status) && leads.length > 0 && (

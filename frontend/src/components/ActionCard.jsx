@@ -65,16 +65,21 @@ export default function ActionCard({ campaign, leads, skippedIds, unlocking, act
   if (status === "AWAITING_EMAIL_APPROVAL") {
     return (
       <div className="border border-blue-300 bg-blue-50 rounded-lg p-5 space-y-3">
-        <p className="font-semibold text-blue-900 text-base">
-          Emails drafted — review them below, then launch the campaign
-        </p>
+        <div>
+          <p className="font-semibold text-blue-900 text-base">
+            Emails drafted — review them below, then push to Instantly
+          </p>
+          <p className="text-sm text-blue-700 mt-1">
+            Clicking &ldquo;Push to Instantly&rdquo; will upload all leads and emails to Instantly and activate the campaign. Emails will be sent according to your Instantly schedule.
+          </p>
+        </div>
         <div className="flex gap-2 flex-wrap pt-1">
           <button
             onClick={() => onAction("approve-emails")}
             disabled={acting}
             className="bg-green-600 text-white px-4 py-2 rounded text-sm disabled:opacity-50 font-medium"
           >
-            Approve &amp; launch
+            Push to Instantly →
           </button>
           <button
             onClick={() => onAction("reject-emails")}

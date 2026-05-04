@@ -130,6 +130,13 @@ export async function moveLeadToSubsequence(instantlyLeadId, subsequenceId, opts
   }, opts);
 }
 
+export async function getCampaignAnalytics(instantlyCampaignId, opts = {}) {
+  const data = await req("/api/v2/analytics/campaign/summary", "POST", {
+    campaign_ids: [instantlyCampaignId]
+  }, opts);
+  return data?.[0] ?? null;
+}
+
 export async function getRecentReplies(instantlyCampaignId, sinceDate, opts = {}) {
   const params = new URLSearchParams({
     campaign_id: instantlyCampaignId,

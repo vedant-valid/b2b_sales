@@ -3,7 +3,7 @@ export const CAMPAIGN_STATUS_LABELS = {
   RUNNING: "Running…",
   AWAITING_LEAD_SELECTION: "Review Leads",
   AWAITING_LEAD_APPROVAL: "Approve Leads",
-  AWAITING_EMAIL_APPROVAL: "Approve Emails",
+  AWAITING_EMAIL_APPROVAL: "Ready to Push",
   READY_FOR_OUTREACH: "Sending…",
   PAUSED: "Paused",
   COMPLETED: "Completed",
