@@ -3,42 +3,35 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useSession, signOut } from "next-auth/react";
 import { apiFetch } from "@/lib/api";
-
-const STATUS_LABELS = {
-  DRAFT: "Draft",
-  RUNNING: "Running…",
-  AWAITING_LEAD_SELECTION: "Review Leads",
-  AWAITING_LEAD_APPROVAL: "Approve Leads",
-  AWAITING_EMAIL_APPROVAL: "Approve Emails",
-  READY_FOR_OUTREACH: "Sending…",
-  PAUSED: "Paused",
-  COMPLETED: "Completed",
-};
-
-const STATUS_COLOURS = {
-  DRAFT: "bg-gray-100 text-gray-700",
-  RUNNING: "bg-blue-100 text-blue-700",
-  AWAITING_LEAD_SELECTION: "bg-amber-100 text-amber-700",
-  AWAITING_LEAD_APPROVAL: "bg-yellow-100 text-yellow-700",
-  AWAITING_EMAIL_APPROVAL: "bg-purple-100 text-purple-700",
-  READY_FOR_OUTREACH: "bg-blue-100 text-blue-700",
-  PAUSED: "bg-orange-100 text-orange-700",
-  COMPLETED: "bg-green-100 text-green-700",
-};
-
-const NEEDS_ACTION = new Set(["AWAITING_LEAD_SELECTION", "AWAITING_LEAD_APPROVAL", "AWAITING_EMAIL_APPROVAL"]);
+import { campaignStatusLabel, campaignStatusNeedsAction } from "@/lib/campaignStatus";
 
 function StatusBadge({ status }) {
+  const needsAction = campaignStatusNeedsAction(status);
+  const colours = {
+    DRAFT: "bg-gray-100 text-gray-700",
+    RUNNING: "bg-blue-100 text-blue-700",
+    AWAITING_LEAD_SELECTION: "bg-amber-100 text-amber-700",
+    AWAITING_LEAD_APPROVAL: "bg-yellow-100 text-yellow-700",
+    AWAITING_EMAIL_APPROVAL: "bg-purple-100 text-purple-700",
+    READY_FOR_OUTREACH: "bg-blue-100 text-blue-700",
+    PAUSED: "bg-orange-100 text-orange-700",
+    COMPLETED: "bg-green-100 text-green-700",
+  };
   return (
-    <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLOURS[status] ?? "bg-gray-100 text-gray-600"}`}>
-      {NEEDS_ACTION.has(status) && <span className="w-1.5 h-1.5 rounded-full bg-current opacity-80 shrink-0" />}
-      {STATUS_LABELS[status] ?? status.replace(/_/g, " ")}
+    <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium ${colours[status] ?? "bg-gray-100 text-gray-600"}`}>
+      {needsAction && <span className="w-1.5 h-1.5 rounded-full bg-current opacity-80 shrink-0" />}
+      {campaignStatusLabel(status)}
     </span>
   );
 }
 
 function CampaignTable({ items }) {
-  if (items.length === 0) return <p className="text-sm text-gray-400 py-2">None yet.</p>;
+  if (items.length === 0) return (
+    <div className="py-6 text-center text-gray-400 text-sm space-y-2">
+      <p>No campaigns here yet.</p>
+      <a href="/campaigns/new" className="text-gray-600 underline text-sm">Create one →</a>
+    </div>
+  );
   return (
     <table className="w-full text-sm">
       <thead>
