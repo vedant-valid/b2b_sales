@@ -52,7 +52,7 @@ export default function LeadDetailPage({ params }) {
     setLead((l) => ({ ...l, status: newStatus }));
     try {
       await apiFetch(`/api/leads/${id}`, {
-        token: session.backendToken,
+        token: session?.backendToken,
         method: "PATCH",
         body: { status: newStatus },
       });
