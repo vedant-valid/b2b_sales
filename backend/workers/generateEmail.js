@@ -54,6 +54,7 @@ export async function runGenerateEmailJob(job) {
       where: {
         campaignId: lead.campaignId,
         isEnriched: true,
+        email: { not: null },
         emails: { none: {} }
       }
     });
