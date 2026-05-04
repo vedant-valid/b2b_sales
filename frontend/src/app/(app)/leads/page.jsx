@@ -8,6 +8,7 @@ export default function LeadsPage() {
   const { data: session } = useSession();
   const [leads, setLeads] = useState([]);
   const [tab, setTab] = useState("active");
+  const isViewer = session?.user?.role === "VIEWER";
 
   useEffect(() => {
     if (!session?.backendToken) return;
@@ -45,12 +46,12 @@ export default function LeadsPage() {
         <div className="space-y-8">
           <Section title="Outreach" count={activeOutreach.length} countCls="bg-gray-100 text-gray-600" empty="No outreach leads yet.">
             {activeOutreach.length > 0 && (
-              <LeadTable leads={activeOutreach} token={session?.backendToken} onStatusChange={onStatusChange} />
+              <LeadTable leads={activeOutreach} token={!isViewer ? session?.backendToken : undefined} onStatusChange={!isViewer ? onStatusChange : undefined} />
             )}
           </Section>
           <Section title="Demo / Testing" count={activeTest.length} countCls="bg-amber-100 text-amber-700" empty="No test leads yet.">
             {activeTest.length > 0 && (
-              <LeadTable leads={activeTest} token={session?.backendToken} onStatusChange={onStatusChange} />
+              <LeadTable leads={activeTest} token={!isViewer ? session?.backendToken : undefined} onStatusChange={!isViewer ? onStatusChange : undefined} />
             )}
           </Section>
         </div>
@@ -61,7 +62,7 @@ export default function LeadsPage() {
           {totalIrrelevant === 0 ? (
             <p className="text-sm text-gray-400">No leads marked as irrelevant yet.</p>
           ) : (
-            <LeadTable leads={[...irrelevantOutreach, ...irrelevantTest]} token={session?.backendToken} onStatusChange={onStatusChange} />
+            <LeadTable leads={[...irrelevantOutreach, ...irrelevantTest]} token={!isViewer ? session?.backendToken : undefined} onStatusChange={!isViewer ? onStatusChange : undefined} />
           )}
         </div>
       )}
