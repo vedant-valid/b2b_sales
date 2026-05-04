@@ -7,6 +7,7 @@ import EmailTemplatePanel from "@/components/EmailTemplatePanel";
 import JobProgressBar from "@/components/JobProgressBar";
 import LeadApprovalTable from "@/components/LeadApprovalTable";
 import Link from "next/link";
+import LeadTable from "@/components/LeadTable";
 
 const DEV_MODE = process.env.NEXT_PUBLIC_DEV_MODE === "true";
 
@@ -25,6 +26,7 @@ export default function CampaignDetailPage({ params }) {
   const [testEmail, setTestEmail] = useState("");
   const [addingTestLead, setAddingTestLead] = useState(false);
   const [testLeadError, setTestLeadError] = useState("");
+  const [leadTab, setLeadTab] = useState("active");
 
   const loadCampaign = useCallback(() => {
     if (!session?.backendToken) return;
@@ -94,6 +96,10 @@ export default function CampaignDetailPage({ params }) {
 
   function onUndoSkip(leadId) {
     setSkippedIds(prev => { const n = new Set(prev); n.delete(leadId); return n; });
+  }
+
+  function onLeadStatusChange(id, newStatus) {
+    setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, status: newStatus } : l)));
   }
 
   async function onUnlockLeads() {
@@ -287,84 +293,97 @@ export default function CampaignDetailPage({ params }) {
       {jobId && <JobProgressBar jobId={jobId} />}
       {error && <p className="text-red-600 text-sm">{error}</p>}
 
-      {!["AWAITING_LEAD_APPROVAL", "AWAITING_LEAD_SELECTION"].includes(campaign.status) && <div>
-        <div className="flex justify-between items-center mb-2">
-          <h2 className="font-semibold">Leads ({leads.length})</h2>
-          <div className="flex gap-2 items-center">
-          {campaign.status === "RUNNING" && !isViewer && (
-            <button
-              onClick={onSyncStatus}
-              disabled={acting}
-              className="text-xs border border-gray-400 text-gray-700 bg-white px-2 py-1 rounded disabled:opacity-50"
-            >
-              Sync Status
-            </button>
-          )}
-          {DEV_MODE && !isViewer && (
-            <button
-              onClick={onSeedDevLead}
-              disabled={acting}
-              className="text-xs border border-yellow-500 text-yellow-700 bg-yellow-50 px-2 py-1 rounded disabled:opacity-50"
-            >
-              + Add test lead (dev)
-            </button>
-          )}
+      {!["AWAITING_LEAD_APPROVAL", "AWAITING_LEAD_SELECTION"].includes(campaign.status) && (
+        <div className="space-y-3">
+          <div className="flex justify-between items-center">
+            <h2 className="font-semibold">Leads</h2>
+            <div className="flex gap-2 items-center">
+              {campaign.status === "RUNNING" && !isViewer && (
+                <button
+                  onClick={onSyncStatus}
+                  disabled={acting}
+                  className="text-xs border border-gray-400 text-gray-700 bg-white px-2 py-1 rounded disabled:opacity-50"
+                >
+                  Sync Status
+                </button>
+              )}
+              {DEV_MODE && !isViewer && (
+                <button
+                  onClick={onSeedDevLead}
+                  disabled={acting}
+                  className="text-xs border border-yellow-500 text-yellow-700 bg-yellow-50 px-2 py-1 rounded disabled:opacity-50"
+                >
+                  + Add test lead (dev)
+                </button>
+              )}
+            </div>
           </div>
-        </div>
-        {leads.length === 0 ? (
-          <p className="text-sm text-gray-500">No leads yet.</p>
-        ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left border-b">
-                <th className="pb-1">Name</th>
-                <th>Title</th>
-                <th>Company</th>
-                <th>Email</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {leads.map((l) => (
-                <tr key={l.id} className={`border-b hover:bg-gray-50 ${l.email === "madnevedant15@gmail.com" && DEV_MODE ? "bg-yellow-50" : ""}`}>
-                  <td className="py-2">
-                    <Link className="underline" href={`/leads/${l.id}`}>
-                      {l.firstName} {l.lastName}
-                      {l.email === "madnevedant15@gmail.com" && DEV_MODE && (
-                        <span className="ml-1 text-xs text-yellow-700 font-mono">[DEV]</span>
-                      )}
-                    </Link>
-                  </td>
-                  <td>{l.title}</td>
-                  <td>{l.company}</td>
-                  <td>{l.email}</td>
-                  <td>{l.status}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
 
-        {campaign.mode === "TEST" && !isViewer && (
-          <form onSubmit={onAddTestLead} className="mt-3 flex items-center gap-2">
-            <input
-              type="email"
-              placeholder="Add test email address…"
-              value={testEmail}
-              onChange={e => { setTestEmail(e.target.value); setTestLeadError(""); }}
-              className="border border-gray-300 rounded px-3 py-1.5 text-sm w-72 focus:outline-none focus:border-gray-500"
-            />
-            <button
-              type="submit"
-              disabled={addingTestLead || !testEmail}
-              className="text-sm bg-black text-white px-3 py-1.5 rounded disabled:opacity-40"
-            >
-              {addingTestLead ? "Adding…" : "+ Add"}
-            </button>
-            {testLeadError && <span className="text-xs text-red-500">{testLeadError}</span>}
-          </form>
-        )}
-      </div>}
+          {leads.length === 0 ? (
+            <p className="text-sm text-gray-500">No leads yet.</p>
+          ) : (
+            <>
+              <div className="flex gap-0 border-b">
+                {["active", "irrelevant"].map((t) => {
+                  const count = t === "active"
+                    ? leads.filter((l) => l.status !== "SKIPPED").length
+                    : leads.filter((l) => l.status === "SKIPPED").length;
+                  const countCls = t === "irrelevant" ? "bg-orange-100 text-orange-600" : "bg-gray-100 text-gray-600";
+                  return (
+                    <button
+                      key={t}
+                      onClick={() => setLeadTab(t)}
+                      className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                        leadTab === t ? "border-black text-black" : "border-transparent text-gray-500 hover:text-gray-700"
+                      }`}
+                    >
+                      {t === "active" ? "Active" : "Irrelevant"}{" "}
+                      <span className={`ml-1 text-xs px-1.5 py-0.5 rounded-full ${countCls}`}>{count}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {leadTab === "active" && (
+                <LeadTable
+                  leads={leads.filter((l) => l.status !== "SKIPPED")}
+                  token={!isViewer ? session?.backendToken : undefined}
+                  onStatusChange={!isViewer ? onLeadStatusChange : undefined}
+                />
+              )}
+              {leadTab === "irrelevant" && (
+                leads.filter((l) => l.status === "SKIPPED").length === 0
+                  ? <p className="text-sm text-gray-400">No irrelevant leads.</p>
+                  : <LeadTable
+                      leads={leads.filter((l) => l.status === "SKIPPED")}
+                      token={!isViewer ? session?.backendToken : undefined}
+                      onStatusChange={!isViewer ? onLeadStatusChange : undefined}
+                    />
+              )}
+            </>
+          )}
+
+          {campaign.mode === "TEST" && !isViewer && (
+            <form onSubmit={onAddTestLead} className="mt-3 flex items-center gap-2">
+              <input
+                type="email"
+                placeholder="Add test email address…"
+                value={testEmail}
+                onChange={(e) => { setTestEmail(e.target.value); setTestLeadError(""); }}
+                className="border border-gray-300 rounded px-3 py-1.5 text-sm w-72 focus:outline-none focus:border-gray-500"
+              />
+              <button
+                type="submit"
+                disabled={addingTestLead || !testEmail}
+                className="text-sm bg-black text-white px-3 py-1.5 rounded disabled:opacity-40"
+              >
+                {addingTestLead ? "Adding…" : "+ Add"}
+              </button>
+              {testLeadError && <span className="text-xs text-red-500">{testLeadError}</span>}
+            </form>
+          )}
+        </div>
+      )}
     </div>
   );
 }
