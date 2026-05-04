@@ -28,12 +28,17 @@ export default function JobProgressBar({ jobId, onComplete }) {
     return () => { cancelled = true; };
   }, [jobId, session?.backendToken]);
 
-  if (!job) return <p className="text-sm text-gray-500">Queuing…</p>;
+  if (!job) return <p className="text-sm text-gray-500 animate-pulse">Finding leads… this usually takes 20–30 seconds</p>;
+
+  const messages = {
+    completed: "Done — leads loaded below",
+    failed: "Something went wrong. Try running the campaign again.",
+  };
+
   return (
-    <div className="text-sm">
-      <span>Job {job.name}: </span>
-      <span className="font-semibold">{job.state}</span>
-      {job.retryCount > 0 && <span className="text-amber-700"> (retry {job.retryCount})</span>}
+    <div className={`text-sm ${job.state === "failed" ? "text-red-600" : "text-gray-500"}`}>
+      {messages[job.state] ?? "Finding leads… this usually takes 20–30 seconds"}
+      {job.retryCount > 0 && <span className="text-amber-600 ml-2">(retrying…)</span>}
     </div>
   );
 }
