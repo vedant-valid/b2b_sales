@@ -37,6 +37,22 @@ router.post("/instantly", async (req, res, next) => {
       return res.json({ ok: true });
     }
 
+    if (eventName === "email_bounced" || eventName === "bounced") {
+      await prisma.lead.updateMany({
+        where: { email: leadEmail },
+        data: { status: "NOT_INTERESTED" }
+      });
+      return res.json({ ok: true });
+    }
+
+    if (eventName === "unsubscribed" || eventName === "opt_out") {
+      await prisma.lead.updateMany({
+        where: { email: leadEmail },
+        data: { status: "NOT_INTERESTED" }
+      });
+      return res.json({ ok: true });
+    }
+
     if (eventName !== "reply_received") return res.json({ ok: true });
 
     const boss = await getBoss();
