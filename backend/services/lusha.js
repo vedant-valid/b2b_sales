@@ -102,11 +102,12 @@ function normalizeName(fullName = "") {
 function normalizeEnriched(contact) {
   const d = contact.data || {};
   const emailEntry = (d.emailAddresses || []).find(e => e.emailType === "work") || d.emailAddresses?.[0];
+  const rawEmail = emailEntry?.email || null;
   return {
     lushaContactId: contact.id,
     firstName: d.firstName || "",
     lastName: d.lastName || "",
-    email: emailEntry?.email || null,
+    email: rawEmail && !rawEmail.startsWith("...") ? rawEmail : null,
     phone: d.phoneNumbers?.[0]?.number || null,
     title: d.jobTitle || null,
     company: d.companyName || null,

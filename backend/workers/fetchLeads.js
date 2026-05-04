@@ -39,22 +39,50 @@ export async function runFetchLeadsJob(job) {
   const upsertedLeads = [];
   for (const r of results) {
     const personId = r.lushaContactId ?? `${campaignId}-unknown-${Date.now()}`;
-    const lead = await prisma.lead.upsert({
-      where: { lushaPersonId: personId },
-      update: {},
-      create: {
-        lushaPersonId: personId,
-        lushaRequestId: r.requestId,
-        firstName: r.firstName,
-        lastName: r.lastName,
-        title: r.title,
-        company: r.company,
-        enrichmentStatus: "PREVIEW",
-        isEnriched: false,
-        campaignId
-      }
-    });
+    const existing = personId
+      ? await prisma.lead.findUnique({ where: { lushaPersonId: personId } })
+      : null;
+
+    let lead;
+    if (!existing) {
+      lead = await prisma.lead.create({
+        data: {
+          lushaPersonId: personId,
+          lushaRequestId: r.requestId,
+          firstName: r.firstName,
+          lastName: r.lastName,
+          title: r.title,
+          company: r.company,
+          enrichmentStatus: "PREVIEW",
+          isEnriched: false,
+          campaignId
+        }
+      });
+    } else if (existing.isEnriched) {
+      // Contact already unlocked (credits spent) in another campaign — skip to avoid disrupting it
+      logger.info(`fetch-leads: skipping ${personId} — already enriched in campaign ${existing.campaignId}`);
+      continue;
+    } else {
+      // PREVIEW lead from this or another campaign — reassign to current campaign
+      lead = await prisma.lead.update({
+        where: { id: existing.id },
+        data: {
+          campaignId,
+          lushaRequestId: r.requestId,
+          firstName: r.firstName,
+          lastName: r.lastName,
+          title: r.title,
+          company: r.company
+        }
+      });
+    }
     upsertedLeads.push(lead);
+  }
+
+  if (upsertedLeads.length === 0) {
+    await prisma.campaign.update({ where: { id: campaignId }, data: { status: "COMPLETED" } });
+    logger.info(`fetch-leads: all contacts already enriched in other campaigns for campaign ${campaignId}`);
+    return { leadCount: 0 };
   }
 
   let scores = [];

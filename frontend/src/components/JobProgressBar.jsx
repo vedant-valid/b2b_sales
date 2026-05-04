@@ -1,11 +1,13 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { apiFetch } from "@/lib/api";
 
-export default function JobProgressBar({ jobId }) {
+export default function JobProgressBar({ jobId, onComplete }) {
   const { data: session } = useSession();
   const [job, setJob] = useState(null);
+  const onCompleteRef = useRef(onComplete);
+  onCompleteRef.current = onComplete;
 
   useEffect(() => {
     if (!jobId || !session?.backendToken) return;
@@ -15,7 +17,11 @@ export default function JobProgressBar({ jobId }) {
         const { job } = await apiFetch(`/api/jobs/${jobId}`, { token: session.backendToken });
         if (cancelled) return;
         setJob(job);
-        if (job.state !== "completed" && job.state !== "failed") setTimeout(poll, 2000);
+        if (job.state !== "completed" && job.state !== "failed") {
+          setTimeout(poll, 2000);
+        } else if (job.state === "completed") {
+          onCompleteRef.current?.();
+        }
       } catch { /* ignore */ }
     }
     poll();

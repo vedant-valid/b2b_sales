@@ -27,7 +27,7 @@ export default function LeadRowActions({ lead, token, onStatusChange }) {
 
   return (
     <span className="flex items-center gap-2 text-xs whitespace-nowrap">
-      {lead.status === "NEW" && (
+      {lead.status === "NEW" && lead.email && (
         <button
           disabled={busy}
           onClick={() => transition("CONTACTED")}

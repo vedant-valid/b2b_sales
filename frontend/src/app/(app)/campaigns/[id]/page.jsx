@@ -290,7 +290,7 @@ export default function CampaignDetailPage({ params }) {
         </div>
       )}
 
-      {jobId && <JobProgressBar jobId={jobId} />}
+      {jobId && <JobProgressBar jobId={jobId} onComplete={() => { loadCampaign(); loadLeads(); }} />}
       {error && <p className="text-red-600 text-sm">{error}</p>}
 
       {!["AWAITING_LEAD_APPROVAL", "AWAITING_LEAD_SELECTION"].includes(campaign.status) && (
