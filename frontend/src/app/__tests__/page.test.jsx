@@ -1,7 +1,10 @@
-import { render, screen } from "@testing-library/react";
-import Home from "../page.jsx";
+import { redirect } from "next/navigation";
+import { vi } from "vitest";
 
-test("home renders heading", () => {
-  render(<Home />);
-  expect(screen.getByRole("heading", { name: /outreach/i })).toBeInTheDocument();
+vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
+
+test("home redirects to /dashboard", async () => {
+  const { default: Home } = await import("../page.jsx");
+  Home();
+  expect(redirect).toHaveBeenCalledWith("/dashboard");
 });
