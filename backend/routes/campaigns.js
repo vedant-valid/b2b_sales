@@ -215,6 +215,21 @@ router.post("/:id/approve-leads", requireRole("ADMIN", "MANAGER"), async (req, r
   } catch (e) { next(e); }
 });
 
+router.delete("/:id", requireRole("ADMIN", "MANAGER"), async (req, res, next) => {
+  try {
+    const campaign = await prisma.campaign.findUnique({ where: { id: req.params.id } });
+    if (!campaign) return res.status(404).json({ error: "not_found" });
+    const leads = await prisma.lead.findMany({ where: { campaignId: campaign.id }, select: { id: true } });
+    const leadIds = leads.map(l => l.id);
+    await prisma.leadSelection.deleteMany({ where: { leadId: { in: leadIds } } });
+    await prisma.reply.deleteMany({ where: { leadId: { in: leadIds } } });
+    await prisma.email.deleteMany({ where: { leadId: { in: leadIds } } });
+    await prisma.lead.deleteMany({ where: { id: { in: leadIds } } });
+    await prisma.campaign.delete({ where: { id: campaign.id } });
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
 router.post("/:id/reject-leads", requireRole("ADMIN", "MANAGER"), async (req, res, next) => {
   try {
     const campaign = await prisma.campaign.findUnique({ where: { id: req.params.id } });

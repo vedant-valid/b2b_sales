@@ -25,7 +25,7 @@ function StatusBadge({ status }) {
   );
 }
 
-function CampaignTable({ items }) {
+function CampaignTable({ items, onDelete }) {
   if (items.length === 0) return (
     <div className="py-6 text-center text-gray-400 text-sm space-y-2">
       <p>No campaigns here yet.</p>
@@ -40,6 +40,7 @@ function CampaignTable({ items }) {
           <th>Status</th>
           <th>Leads</th>
           <th>Created</th>
+          <th></th>
         </tr>
       </thead>
       <tbody>
@@ -51,6 +52,15 @@ function CampaignTable({ items }) {
             <td><StatusBadge status={c.status} /></td>
             <td>{c._count?.leads ?? 0}</td>
             <td>{new Date(c.createdAt).toLocaleDateString()}</td>
+            <td className="text-right pr-1">
+              <button
+                onClick={() => onDelete(c)}
+                className="text-xs text-red-400 hover:text-red-600 transition-colors px-1"
+                title="Delete campaign"
+              >
+                ✕
+              </button>
+            </td>
           </tr>
         ))}
       </tbody>
@@ -72,6 +82,14 @@ export default function CampaignsPage() {
   const outreach = items.filter((c) => c.mode !== "TEST");
   const testing = items.filter((c) => c.mode === "TEST");
 
+  async function onDelete(campaign) {
+    if (!confirm(`Delete "${campaign.name}"? This removes all leads, emails, and replies. This cannot be undone.`)) return;
+    try {
+      await apiFetch(`/api/campaigns/${campaign.id}`, { token: session?.backendToken, method: "DELETE" });
+      setItems(prev => prev.filter(c => c.id !== campaign.id));
+    } catch (e) { alert(e.message); }
+  }
+
   return (
     <div className="space-y-8">
       <div className="flex justify-between items-center">
@@ -85,7 +103,7 @@ export default function CampaignsPage() {
         <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-3">
           Outreach
         </h2>
-        <CampaignTable items={outreach} />
+        <CampaignTable items={outreach} onDelete={onDelete} />
       </section>
 
       <section>
@@ -93,7 +111,7 @@ export default function CampaignsPage() {
           <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">Testing</h2>
           <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">demo only</span>
         </div>
-        <CampaignTable items={testing} />
+        <CampaignTable items={testing} onDelete={onDelete} />
       </section>
     </div>
   );

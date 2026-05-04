@@ -1,6 +1,7 @@
 "use client";
 import { use, useCallback, useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import FilterPreview from "@/components/FilterPreview";
 import EmailTemplatePanel from "@/components/EmailTemplatePanel";
@@ -18,6 +19,7 @@ const DEV_MODE = process.env.NEXT_PUBLIC_DEV_MODE === "true";
 export default function CampaignDetailPage({ params }) {
   const { id } = use(params);
   const { data: session } = useSession();
+  const router = useRouter();
   const [campaign, setCampaign] = useState(null);
   const [leads, setLeads] = useState([]);
   const [jobId, setJobId] = useState(null);
@@ -176,6 +178,14 @@ export default function CampaignDetailPage({ params }) {
     finally { setActing(false); }
   }
 
+  async function onDelete() {
+    if (!confirm(`Delete "${campaign.name}"? This will permanently remove all leads, emails, and replies. This cannot be undone.`)) return;
+    try {
+      await apiFetch(`/api/campaigns/${id}`, { token: session.backendToken, method: "DELETE" });
+      router.push("/campaigns");
+    } catch (e) { setError(e.message); }
+  }
+
   if (!campaign) return <p>Loading...</p>;
 
   const isViewer = session?.user?.role === "VIEWER";
@@ -200,11 +210,21 @@ export default function CampaignDetailPage({ params }) {
             <h1 className="text-xl font-bold">{campaign.name}</h1>
             <p className="text-sm text-gray-500">{campaignStatusLabel(campaign.status)}</p>
           </div>
-          {!isViewer && campaign.status === "DRAFT" && (
-            <button onClick={onRun} className="bg-black text-white px-3 py-2 rounded text-sm">
-              Run campaign
-            </button>
-          )}
+          <div className="flex gap-2 items-center">
+            {!isViewer && campaign.status === "DRAFT" && (
+              <button onClick={onRun} className="bg-black text-white px-3 py-2 rounded text-sm">
+                Run campaign
+              </button>
+            )}
+            {!isViewer && (
+              <button
+                onClick={onDelete}
+                className="text-xs text-red-500 hover:text-red-700 border border-red-200 hover:border-red-400 px-2 py-1.5 rounded transition-colors"
+              >
+                Delete
+              </button>
+            )}
+          </div>
         </div>
         <StepBar status={campaign.status} />
       </div>
