@@ -20,16 +20,25 @@ export async function runFetchLeadsJob(job) {
 
   const rawResults = await lusha.searchLeadsBasic(campaign.extractedFilters);
 
-  // Post-filter by titleKeywords if the extraction produced them
+  // Post-filter by titleKeywords (include) then excludeTitleKeywords (exclude)
   const keywords = campaign.extractedFilters?.titleKeywords;
-  const results = keywords?.length
+  const excludeKeywords = campaign.extractedFilters?.excludeTitleKeywords;
+
+  let results = keywords?.length
     ? rawResults.filter(r => {
         const title = (r.title || "").toLowerCase();
         return keywords.some(kw => title.includes(kw.toLowerCase()));
       })
     : rawResults;
 
-  logger.info(`fetch-leads: ${rawResults.length} raw → ${results.length} title-matched leads for campaign ${campaignId}`);
+  if (excludeKeywords?.length) {
+    results = results.filter(r => {
+      const title = (r.title || "").toLowerCase();
+      return !excludeKeywords.some(kw => title.includes(kw.toLowerCase()));
+    });
+  }
+
+  logger.info(`fetch-leads: ${rawResults.length} raw → ${results.length} after title filters for campaign ${campaignId}`);
 
   if (results.length === 0) {
     await prisma.campaign.update({ where: { id: campaignId }, data: { status: "COMPLETED" } });

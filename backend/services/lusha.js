@@ -53,6 +53,7 @@ const SIZE_RANGES = {
 function buildLushaBody(geminiFilters, page = 0, size = 25) {
   const contactsInclude = {};
   const companiesInclude = {};
+  const companiesExclude = {};
 
   if (geminiFilters.departments?.length) {
     contactsInclude.departments = geminiFilters.departments;
@@ -82,11 +83,18 @@ function buildLushaBody(geminiFilters, page = 0, size = 25) {
     if (sizes.length) companiesInclude.sizes = sizes;
   }
 
+  if (geminiFilters.excludeIndustries?.length) {
+    companiesExclude.industries = geminiFilters.excludeIndustries;
+  }
+
   return {
     pages: { page, size },
     filters: {
       contacts: { include: contactsInclude },
-      companies: { include: companiesInclude }
+      companies: {
+        include: companiesInclude,
+        ...(Object.keys(companiesExclude).length ? { exclude: companiesExclude } : {})
+      }
     }
   };
 }

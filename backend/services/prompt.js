@@ -9,7 +9,9 @@ Return JSON only, with this shape:
     "departments": [string],
     "locations": [string],
     "companySizes": [string],
-    "titleKeywords": [string]
+    "titleKeywords": [string],
+    "excludeTitleKeywords": [string],
+    "excludeIndustries": [string]
   },
   "confidence": number (0..1),
   "clarification": string (only if confidence < 0.7)
@@ -21,6 +23,8 @@ RULES:
 - "locations": country names only (e.g. "India", "United States")
 - "companySizes": use range strings → "1-10", "11-50", "51-200", "201-500", "501-1000", "1001-5000", "5001-10000", "10001+" OR natural language → "startup", "small", "medium", "large", "enterprise", "unicorn"
 - "titleKeywords": ALWAYS include when a specific role is mentioned — used to post-filter results. Use lowercase substrings that appear in target job titles.
+- "excludeTitleKeywords": populate when the goal explicitly excludes a role (e.g. "not CISOs", "exclude security heads"). Use lowercase substrings.
+- "excludeIndustries": populate when the goal excludes an industry (e.g. "no hospitality", "exclude healthcare"). Use plain English industry names.
 - Omit any field you cannot confidently infer from the goal
 - Do NOT invent values outside the allowed lists
 
@@ -38,7 +42,12 @@ TITLE KEYWORD EXAMPLES:
 - "CTOs" → titleKeywords: ["cto", "chief technology", "chief technical", "vp engineering", "vp of engineering", "head of engineering"]
 - "CMOs" → titleKeywords: ["cmo", "chief marketing", "vp marketing"]
 - "Founders" → titleKeywords: ["founder", "co-founder"]
-- "HR Directors" → titleKeywords: ["hr director", "head of hr", "chief people", "chro"]`;
+- "HR Directors" → titleKeywords: ["hr director", "head of hr", "chief people", "chro"]
+
+EXCLUDE EXAMPLES:
+- "not CISOs" → excludeTitleKeywords: ["ciso", "chief information security", "head of security"]
+- "exclude hospitality companies" → excludeIndustries: ["Hospitality", "Hotels & Resorts"]
+- "no healthcare" → excludeIndustries: ["Healthcare", "Hospitals & Health Care"]`;
 
 
 export async function extractFilters(rawGoal, { generate = generateJson, brandDoc = null } = {}) {
