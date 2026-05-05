@@ -17,7 +17,7 @@ export async function classifySentiment(replyBody, { generate = generateJson } =
   return VALID.includes(out.sentiment) ? out.sentiment : "NEUTRAL";
 }
 
-const FOLLOWUP_PROMPT = `Draft a brief, warm follow-up email. 60 words or less. Plain text. No em-dashes. No placeholders like [Your Name] — sign off with the sender name provided. When proposing meeting times, use IST (Indian Standard Time) and do not mention any other timezone.
+const FOLLOWUP_PROMPT = `Draft a brief, warm follow-up email. 60 words or less. Plain text. No em-dashes. No placeholders whatsoever — use the actual names provided. Sign off with the sender name. When proposing meeting times, use IST (Indian Standard Time) and do not mention any other timezone.
 
 Sentiment context guides tone:
 - INTERESTED → propose 2 concrete meeting times in IST
@@ -31,7 +31,8 @@ export async function draftFollowUp(replyBody, lead, sentiment, { generate = gen
   const brandContext = brandDoc ? `\n\nBrand voice guidelines:\n${brandDoc}` : "";
   const prompt = `${FOLLOWUP_PROMPT}${brandContext}
 
-Sender name (use this to sign off): ${senderName}
+Lead name: ${lead.firstName} ${lead.lastName}
+Sender name: ${senderName}
 
 Reply from ${lead.firstName}:
 ${replyBody}
