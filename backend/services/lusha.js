@@ -122,7 +122,9 @@ function normalizeEnriched(contact) {
     location: d.location?.country || null,
     linkedinUrl: d.socialLinks?.linkedin || null,
     department: d.departments?.[0] || null,
-    seniority: d.seniority?.[0]?.name || null
+    seniority: (Array.isArray(d.seniority)
+      ? (d.seniority[0]?.name || d.seniority[0] || null)
+      : (d.seniority || null))
   };
 }
 
