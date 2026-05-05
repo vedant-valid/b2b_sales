@@ -4,14 +4,15 @@ import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
+import Image from "next/image";
 
 const NAV = [
-  { href: "/dashboard",  label: "Dashboard",  icon: "📊" },
-  { href: "/campaigns",  label: "Campaigns",  icon: "📣" },
-  { href: "/leads",      label: "Leads",      icon: "👥" },
-  { href: "/replies",    label: "Replies",    icon: "💬" },
-  { href: "/export",     label: "Export",     icon: "↓"  },
-  { href: "/settings",   label: "Settings",   icon: "⚙"  },
+  { href: "/dashboard",  label: "Dashboard",  icon: "/icon-dashboard.png" },
+  { href: "/campaigns",  label: "Campaigns",  icon: "/icon-campaigns.png" },
+  { href: "/leads",      label: "Leads",      icon: "/icon-leads.png" },
+  { href: "/replies",    label: "Replies",    icon: "/icon-replies.png" },
+  { href: "/export",     label: "Export",     icon: "/icon-export.png" },
+  { href: "/settings",   label: "Settings",   icon: "/icon-settings.png" },
 ];
 
 export default function Sidebar() {
@@ -41,7 +42,7 @@ export default function Sidebar() {
                   : "text-gray-600 hover:bg-gray-200 border-l-2 border-transparent"
               }`}
             >
-              <span className="text-base leading-none">{icon}</span>
+              <Image src={icon} alt={label} width={20} height={20} className="shrink-0" />
               {label}
             </Link>
           );
