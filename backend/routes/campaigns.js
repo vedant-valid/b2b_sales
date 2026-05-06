@@ -494,7 +494,8 @@ router.post("/:id/unlock-leads", requireRole("ADMIN", "MANAGER"), async (req, re
       try {
         enrichedData = await enrich(requestId, contactIds);
       } catch (err) {
-        return next(err);
+        logger.error(`unlock-leads: Lusha enrich failed for campaign ${campaign.id}: ${err.message}`);
+        return res.status(502).json({ error: "lusha_enrich_failed", message: err.message });
       }
 
       const enrichedMap = new Map(enrichedData.map(e => [e.lushaContactId, e]));

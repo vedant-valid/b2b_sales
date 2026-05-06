@@ -107,6 +107,17 @@ function normalizeName(fullName = "") {
   };
 }
 
+function normalizeSeniority(raw) {
+  if (!raw) return null;
+  if (typeof raw === "string") return raw;
+  if (Array.isArray(raw)) {
+    const first = raw[0];
+    if (!first) return null;
+    return typeof first === "string" ? first : (first.name ?? null);
+  }
+  return raw.name ?? null; // single object
+}
+
 function normalizeEnriched(contact) {
   const d = contact.data || {};
   const emailEntry = (d.emailAddresses || []).find(e => e.emailType === "work") || d.emailAddresses?.[0];
@@ -121,10 +132,8 @@ function normalizeEnriched(contact) {
     company: d.companyName || null,
     location: d.location?.country || null,
     linkedinUrl: d.socialLinks?.linkedin || null,
-    department: d.departments?.[0] || null,
-    seniority: (Array.isArray(d.seniority)
-      ? (d.seniority[0]?.name || d.seniority[0] || null)
-      : (d.seniority || null))
+    department: typeof d.departments?.[0] === "string" ? d.departments[0] : (d.departments?.[0]?.name ?? null),
+    seniority: normalizeSeniority(d.seniority)
   };
 }
 

@@ -161,7 +161,9 @@ export default function CampaignDetailPage({ params }) {
     } catch (e) {
       const msg = e.data?.error === "insufficient_credits"
         ? `Not enough credits — need ${e.data.required}, have ${e.data.available}`
-        : e.message;
+        : e.data?.error === "lusha_enrich_failed"
+          ? `Lusha enrichment failed: ${e.data.message}`
+          : e.message;
       setUnlockError(msg);
     } finally { setUnlocking(false); }
   }
