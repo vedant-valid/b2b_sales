@@ -6,7 +6,7 @@ let instance = null;
 
 export async function getBoss() {
   if (instance) return instance;
-  instance = new PgBoss({ connectionString: env.DATABASE_URL });
+  instance = new PgBoss({ connectionString: env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
   instance.on("error", (e) => logger.error("pgboss", e));
   await instance.start();
   return instance;
