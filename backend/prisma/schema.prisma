@@ -145,6 +145,7 @@ model Reply {
   sentiment     Sentiment?
   draftFollowUp String?
   receivedAt    DateTime
+  approvedAt    DateTime?
   createdAt     DateTime   @default(now())
 
   @@unique([leadId, receivedAt])
