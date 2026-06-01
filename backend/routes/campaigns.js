@@ -35,7 +35,8 @@ const createSchema = z.object({
   name: z.string().min(1),
   rawGoal: z.string().min(5),
   mode: z.enum(["OUTREACH", "TEST"]).default("OUTREACH"),
-  testEmails: z.array(z.string().email()).optional()
+  testEmails: z.array(z.string().email()).optional(),
+  senderEmail: z.string().email().optional(),
 });
 
 function parseNameFromEmail(email) {
@@ -73,12 +74,19 @@ router.post("/", requireRole("ADMIN", "MANAGER"), async (req, res, next) => {
   try {
     const parsed = createSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: "invalid_input" });
-    const { name, rawGoal, mode, testEmails } = parsed.data;
+    const { name, rawGoal, mode, testEmails, senderEmail } = parsed.data;
+
+    if (senderEmail) {
+      const assignment = await prisma.userSenderAccount.findUnique({
+        where: { userId_senderEmail: { userId: req.user.sub, senderEmail } }
+      });
+      if (!assignment) return res.status(403).json({ error: "sender_not_assigned" });
+    }
 
     // TEST campaigns skip Gemini entirely — no Lusha filters needed
     if (mode === "TEST") {
       const campaign = await prisma.campaign.create({
-        data: { name, rawGoal, extractedFilters: null, mode, createdById: req.user.sub }
+        data: { name, rawGoal, extractedFilters: null, mode, senderEmail, createdById: req.user.sub }
       });
       if (testEmails?.length) {
         const title = extractTitleFromGoal(rawGoal) || "Staff";
@@ -107,7 +115,7 @@ router.post("/", requireRole("ADMIN", "MANAGER"), async (req, res, next) => {
       return res.status(422).json({ error: "needs_clarification", clarification: extraction.clarification });
     }
     const campaign = await prisma.campaign.create({
-      data: { name, rawGoal, extractedFilters: extraction.filters, mode, createdById: req.user.sub }
+      data: { name, rawGoal, extractedFilters: extraction.filters, mode, senderEmail, createdById: req.user.sub }
     });
     res.status(201).json({ campaign });
   } catch (e) { next(e); }

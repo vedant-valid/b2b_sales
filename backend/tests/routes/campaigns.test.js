@@ -107,6 +107,42 @@ describe("campaigns routes", () => {
     expect(res.status).toBe(200);
     expect(res.body.campaign.id).toBe(c.id);
   });
+
+  test("POST /api/campaigns stores senderEmail when provided", async () => {
+    const { token, user } = await createUser({ role: "MANAGER", email: "mgr_sender@x.com" });
+
+    // Create a sender account and assign it to this user
+    await prisma.senderAccount.create({
+      data: { accountId: "acc_s1", email: "alice@nstx.co.in", status: "active" }
+    });
+    await prisma.userSenderAccount.create({
+      data: { userId: user.id, senderEmail: "alice@nstx.co.in" }
+    });
+
+    const res = await request(app)
+      .post("/api/campaigns")
+      .set(authHeader(token))
+      .send({ name: "Sender Test", rawGoal: "Engineers at startups", senderEmail: "alice@nstx.co.in" });
+
+    expect(res.status).toBe(201);
+    expect(res.body.campaign.senderEmail).toBe("alice@nstx.co.in");
+  });
+
+  test("POST /api/campaigns rejects senderEmail not assigned to user", async () => {
+    const { token } = await createUser({ role: "MANAGER", email: "mgr_nosender@x.com" });
+
+    await prisma.senderAccount.create({
+      data: { accountId: "acc_s2", email: "other@nstx.co.in", status: "active" }
+    });
+    // Note: NOT assigned to this user
+
+    const res = await request(app)
+      .post("/api/campaigns")
+      .set(authHeader(token))
+      .send({ name: "Sender Test 2", rawGoal: "Engineers at startups", senderEmail: "other@nstx.co.in" });
+
+    expect(res.status).toBe(403);
+  });
 });
 
 describe("approval gates", () => {

@@ -9,6 +9,8 @@ export async function resetDb() {
   await prisma.lead.deleteMany();
   await prisma.campaign.deleteMany();
   await prisma.brandDoc.deleteMany();
+  await prisma.userSenderAccount.deleteMany();
+  await prisma.senderAccount.deleteMany();
   // preserve seeded admin/manager accounts so dev login still works after tests
   await prisma.user.deleteMany({ where: { email: { notIn: SEEDED_EMAILS } } });
 }
