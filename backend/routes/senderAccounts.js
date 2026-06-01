@@ -15,7 +15,7 @@ export function __setListAccountsImpl(impl) { listAccountsFn = impl; }
 router.get("/mine", async (req, res, next) => {
   try {
     const assignments = await prisma.userSenderAccount.findMany({
-      where: { userId: req.user.id },
+      where: { userId: req.user.sub },
       include: { sender: true }
     });
     res.json({ senders: assignments.map(a => a.sender) });
