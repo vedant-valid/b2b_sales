@@ -151,9 +151,9 @@ export async function getRecentReplies(instantlyCampaignId, sinceDate, opts = {}
 export async function listSendingAccounts(opts = {}) {
   const { fetch: fetchFn } = opts;
   const data = await req("/api/v2/accounts", "GET", null, { fetch: fetchFn });
-  return (data.accounts || []).map(a => ({
-    accountId: a.account_id,
+  return (data.items || []).map(a => ({
+    accountId: a.email,
     email: a.email,
-    status: a.status ?? null
+    status: a.status === 1 ? "active" : a.status === -1 ? "inactive" : String(a.status ?? "unknown")
   }));
 }

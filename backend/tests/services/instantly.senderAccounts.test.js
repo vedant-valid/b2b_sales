@@ -4,9 +4,9 @@ test("listSendingAccounts maps Instantly response to { accountId, email, status 
   const fakeFetch = async () => ({
     ok: true,
     json: async () => ({
-      accounts: [
-        { account_id: "acc_1", email: "alice@nstx.co.in", status: "active" },
-        { account_id: "acc_2", email: "bob@nstx.co.in", status: "warming_up" }
+      items: [
+        { email: "alice@nstx.co.in", status: 1 },
+        { email: "bob@nstx.co.in", status: -1 }
       ]
     })
   });
@@ -14,14 +14,14 @@ test("listSendingAccounts maps Instantly response to { accountId, email, status 
   const result = await listSendingAccounts({ fetch: fakeFetch });
 
   expect(result).toHaveLength(2);
-  expect(result[0]).toEqual({ accountId: "acc_1", email: "alice@nstx.co.in", status: "active" });
-  expect(result[1]).toEqual({ accountId: "acc_2", email: "bob@nstx.co.in", status: "warming_up" });
+  expect(result[0]).toEqual({ accountId: "alice@nstx.co.in", email: "alice@nstx.co.in", status: "active" });
+  expect(result[1]).toEqual({ accountId: "bob@nstx.co.in", email: "bob@nstx.co.in", status: "inactive" });
 });
 
-test("listSendingAccounts handles empty accounts array", async () => {
+test("listSendingAccounts handles empty items array", async () => {
   const fakeFetch = async () => ({
     ok: true,
-    json: async () => ({ accounts: [] })
+    json: async () => ({ items: [] })
   });
 
   const result = await listSendingAccounts({ fetch: fakeFetch });
