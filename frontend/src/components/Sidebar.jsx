@@ -13,6 +13,7 @@ const NAV = [
   { href: "/replies",    label: "Replies",    icon: "/icon-replies.png" },
   { href: "/export",     label: "Export",     icon: "/icon-export.png" },
   { href: "/settings",   label: "Settings",   icon: "/icon-settings.png" },
+  { href: "/settings/senders", label: "Senders", icon: "/icon-settings.png", adminOnly: true },
 ];
 
 export default function Sidebar() {
@@ -30,7 +31,7 @@ export default function Sidebar() {
   return (
     <nav className="w-52 border-r bg-gray-50 flex flex-col shrink-0">
       <div className="flex-1 p-3 space-y-0.5 pt-4">
-        {NAV.map(({ href, label, icon }) => {
+        {NAV.filter(item => !item.adminOnly || session?.user?.role === "ADMIN").map(({ href, label, icon }) => {
           const active = pathname === href || (href !== "/dashboard" && pathname.startsWith(href));
           return (
             <Link
