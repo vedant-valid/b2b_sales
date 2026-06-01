@@ -27,10 +27,10 @@ async function req(path, method, body, { fetch: fetchFn = globalThis.fetch } = {
 }
 
 export async function createCampaign(name, opts = {}) {
-  const { mode, fetch: fetchFn, ...restOpts } = opts;
-  const sendingAccounts = env.INSTANTLY_SENDING_ACCOUNTS
-    ? env.INSTANTLY_SENDING_ACCOUNTS.split(",").map(s => s.trim()).filter(Boolean)
-    : undefined;
+  const { mode, senderEmails, fetch: fetchFn } = opts;
+  const sendingAccounts = senderEmails?.length
+    ? senderEmails
+    : env.INSTANTLY_SENDING_ACCOUNTS?.split(",").map(s => s.trim()).filter(Boolean);
 
   // TEST campaigns use a 24/7 schedule so demo emails go out immediately
   const schedule = mode === "TEST"

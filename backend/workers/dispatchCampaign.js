@@ -14,7 +14,8 @@ export async function runDispatchJob(job) {
 
   let instantlyCampaignId = campaign.instantlyCampaignId;
   if (!instantlyCampaignId) {
-    const out = await instantly.createCampaign(campaign.name, { mode: campaign.mode });
+    const senderEmails = campaign.senderEmail ? [campaign.senderEmail] : undefined;
+    const out = await instantly.createCampaign(campaign.name, { mode: campaign.mode, senderEmails });
     instantlyCampaignId = out.instantlyCampaignId;
     await prisma.campaign.update({
       where: { id: campaignId },
