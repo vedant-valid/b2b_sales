@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node --watch server.js",
+    "dev": "lsof -ti:4000 | xargs kill -9 2>/dev/null; node --watch server.js",
     "start": "node server.js",
     "test": "NODE_OPTIONS=--experimental-vm-modules jest",
     "prisma:generate": "prisma generate",
