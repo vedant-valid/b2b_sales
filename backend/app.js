@@ -14,6 +14,7 @@ import repliesRouter from "./routes/replies.js";
 import webhooksRouter from "./routes/webhooks.js";
 import exportRouter from "./routes/export.js";
 import brandDocRouter from "./routes/brandDoc.js";
+import senderAccountsRouter from "./routes/senderAccounts.js";
 
 export function createApp() {
   const app = express();
@@ -27,6 +28,7 @@ export function createApp() {
   app.use("/api/users", usersRouter);
   app.use("/api/jobs", jobsRouter);
   app.use("/api/webhooks", webhooksRouter);  // before emailsRouter (which uses requireAuth on /api/*)
+  app.use("/api/sender-accounts", senderAccountsRouter);
   app.use("/api/campaigns", campaignsRouter);
   app.use("/api/leads", leadsRouter);
   app.use("/api", emailsRouter);    // Catches /leads/:id/emails and /emails/:id/...
