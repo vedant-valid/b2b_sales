@@ -73,6 +73,7 @@ model User {
   campaigns         Campaign[]
   uploadedBrandDocs BrandDoc[]
   leadSelections    LeadSelection[]
+  senderAccounts    UserSenderAccount[]
   createdAt         DateTime        @default(now())
 }
 
@@ -91,6 +92,7 @@ model Campaign {
   emailMode           EmailMode       @default(AI)
   emailTemplateSubject String?
   emailTemplateBody   String?
+  senderEmail         String?
   createdAt           DateTime        @default(now())
 }
 
@@ -169,4 +171,22 @@ model BrandDoc {
   uploadedById String?
   uploadedAt   DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
+}
+
+model SenderAccount {
+  accountId    String              @id
+  email        String              @unique
+  status       String?
+  syncedAt     DateTime            @default(now()) @updatedAt
+  assignments  UserSenderAccount[]
+}
+
+model UserSenderAccount {
+  userId      String
+  senderEmail String
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sender      SenderAccount @relation(fields: [senderEmail], references: [email], onDelete: Cascade)
+  assignedAt  DateTime      @default(now())
+
+  @@id([userId, senderEmail])
 }
