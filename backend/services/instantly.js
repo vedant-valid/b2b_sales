@@ -147,3 +147,13 @@ export async function getRecentReplies(instantlyCampaignId, sinceDate, opts = {}
   const data = await req(`/api/v2/emails?${params}`, "GET", null, opts);
   return data?.items ?? [];
 }
+
+export async function listSendingAccounts(opts = {}) {
+  const { fetch: fetchFn } = opts;
+  const data = await req("/api/v2/accounts", "GET", null, { fetch: fetchFn });
+  return (data.accounts || []).map(a => ({
+    accountId: a.account_id,
+    email: a.email,
+    status: a.status ?? null
+  }));
+}
