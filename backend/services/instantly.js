@@ -100,15 +100,9 @@ export async function lookupInstantlyLeadId(instantlyCampaignId, email, opts = {
 }
 
 export async function sendSubsequence(instantlyCampaignId, email, body, opts = {}) {
-  const schedule = { name: "Default", timing: { from: "00:00", to: "23:59" }, days: { 0: true, 1: true, 2: true, 3: true, 4: true, 5: true, 6: true }, timezone: "Asia/Kolkata" };
-  await req("/api/v2/subsequences", "POST", {
-    parent_campaign: instantlyCampaignId,
-    lead_email: email,
-    name: `Follow-up ${new Date().toISOString()}`,
-    conditions: { crm_status: [], lead_activity: [], reply_contains: "" },
-    subsequence_schedule: { start_date: null, end_date: null, schedules: [schedule] },
-    sequences: [{ steps: [{ type: "email", delay: 0, delay_unit: "minutes", pre_delay: 0, pre_delay_unit: "minutes", variants: [{ subject: "Re:", body }] }] }]
-  }, opts);
+  const subsequenceId = await createFollowUpSubsequence(instantlyCampaignId, "Re:", body, opts);
+  const leadId = await lookupInstantlyLeadId(instantlyCampaignId, email, opts);
+  await moveLeadToSubsequence(leadId, subsequenceId, opts);
 }
 
 export async function createFollowUpSubsequence(instantlyCampaignId, subject, body, opts = {}) {
