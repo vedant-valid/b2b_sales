@@ -41,6 +41,12 @@ export async function runGenerateEmailJob(job) {
     const brandDoc = await prisma.brandDoc.findUnique({ where: { id: "singleton" } });
     draft = await generateDraft(lead, DEFAULT_PROFILE, { brandDoc: brandDoc?.content ?? null });
   }
+  const sentEmail = await prisma.email.findFirst({ where: { leadId, status: "SENT" } });
+  if (sentEmail) {
+    logger.info(`lead ${leadId} already has SENT email v${sentEmail.version}, skipping generation`);
+    return { emailId: sentEmail.id, version: sentEmail.version, skipped: true };
+  }
+
   const latest = await prisma.email.findFirst({ where: { leadId }, orderBy: { version: "desc" } });
   const version = latest ? latest.version + 1 : 1;
 

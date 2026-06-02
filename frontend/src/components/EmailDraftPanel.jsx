@@ -43,6 +43,8 @@ export default function EmailDraftPanel({ leadId, emails: initial, onRefresh }) 
     } finally { setBusy(false); }
   }
 
+  const hasSentEmail = emails.some((e) => e.status === "SENT");
+
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
@@ -64,7 +66,9 @@ export default function EmailDraftPanel({ leadId, emails: initial, onRefresh }) 
           {e.status === "DRAFT" && (
             <div className="flex gap-2">
               <button disabled={busy} onClick={() => regenerate(e.id)} className="text-sm underline">Regenerate</button>
-              <button disabled={busy} onClick={() => send(e.id)} className="text-sm bg-green-600 text-white px-3 py-1 rounded">Send</button>
+              {!hasSentEmail && (
+                <button disabled={busy} onClick={() => send(e.id)} className="text-sm bg-green-600 text-white px-3 py-1 rounded">Send</button>
+              )}
             </div>
           )}
         </div>
