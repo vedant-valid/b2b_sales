@@ -17,6 +17,7 @@ export default function EmailDraftPanel({ leadId, emails: initial, onRefresh }) 
   }
 
   async function generate() {
+    if (hasSentEmail) return;
     setBusy(true);
     try {
       await apiFetch(`/api/leads/${leadId}/emails`, { token, method: "POST" });
@@ -49,9 +50,11 @@ export default function EmailDraftPanel({ leadId, emails: initial, onRefresh }) 
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <h2 className="font-semibold">Emails</h2>
-        <button disabled={busy} onClick={generate} className="bg-black text-white px-3 py-1 rounded text-sm">
-          {busy ? "Working…" : "Generate draft"}
-        </button>
+        {!hasSentEmail && (
+          <button disabled={busy} onClick={generate} className="bg-black text-white px-3 py-1 rounded text-sm">
+            {busy ? "Working…" : "Generate draft"}
+          </button>
+        )}
       </div>
       {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded p-2">{error}</p>}
       {emails.length === 0 && <p className="text-sm text-gray-500">No drafts yet.</p>}
