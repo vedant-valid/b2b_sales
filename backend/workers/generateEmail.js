@@ -65,18 +65,11 @@ export async function runGenerateEmailJob(job) {
       }
     });
     if (pendingLeads === 0) {
-      if (campaign?.mode === "TEST") {
-        // TEST campaigns skip email approval — dispatch immediately
-        const boss = await getBoss();
-        await boss.send("dispatch-to-instantly", { campaignId: lead.campaignId });
-        logger.info(`TEST campaign ${lead.campaignId} dispatching immediately`);
-      } else {
-        await prisma.campaign.update({
-          where: { id: lead.campaignId },
-          data: { status: "AWAITING_EMAIL_APPROVAL" }
-        });
-        logger.info(`campaign ${lead.campaignId} awaiting email approval`);
-      }
+      await prisma.campaign.update({
+        where: { id: lead.campaignId },
+        data: { status: "AWAITING_EMAIL_APPROVAL" }
+      });
+      logger.info(`campaign ${lead.campaignId} awaiting email approval`);
     }
   }
 
