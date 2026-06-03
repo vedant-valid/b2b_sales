@@ -15,7 +15,6 @@ export async function runPollRepliesJob(job, boss) {
 
   const campaigns = await prisma.campaign.findMany({
     where: {
-      status: { in: ["RUNNING", "COMPLETED"] },
       instantlyCampaignId: { not: null }
     },
     select: { id: true, instantlyCampaignId: true }
