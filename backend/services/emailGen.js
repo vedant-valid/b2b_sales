@@ -34,3 +34,37 @@ Sender profile:
 JSON:`;
   return generate(prompt, opts);
 }
+
+const TEMPLATE_SYSTEM = `You are a world-class outbound copywriter. Write a cold outreach B2B email template.
+
+Use these exact placeholder tokens wherever lead-specific values belong:
+- {{firstName}} — lead's first name
+- {{lastName}} — lead's last name
+- {{title}} — lead's job title
+- {{company}} — lead's company name
+- {{aiPersonalization}} — AI-generated hook line specific to the lead (use once in the opening if it helps)
+
+Structure:
+- Hook: use {{aiPersonalization}} or reference {{title}} / {{company}} plausibly
+- Bridge: tie into the value proposition from the campaign goal
+- Proof: 1 concrete credibility line
+- CTA: one clear ask (15-min call)
+
+Rules:
+- Subject under 60 chars
+- Body under 150 words
+- Plain text, no markdown
+- No em-dashes
+- Use only the placeholder tokens listed above — no hardcoded names or companies
+
+Return JSON: { "subject": string, "body": string }`;
+
+export async function generateTemplateEmail(rawGoal, brandDoc = null, { generate = generateJson } = {}) {
+  const opts = brandDoc ? { systemInstruction: `BRAND GUIDELINES — follow these for every output:\n${brandDoc}` } : {};
+  const prompt = `${TEMPLATE_SYSTEM}
+
+Campaign goal: ${rawGoal}
+
+JSON:`;
+  return generate(prompt, opts);
+}
