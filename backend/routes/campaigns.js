@@ -5,6 +5,7 @@ import { requireAuth } from "../middleware/auth.js";
 import { requireRole } from "../middleware/rbac.js";
 import { extractFilters as realExtractFilters } from "../services/prompt.js";
 import { enrichLeads as realEnrichLeads } from "../services/lusha.js";
+import { generateTemplateEmail as realGenerateTemplateEmail } from "../services/emailGen.js";
 import { generateText } from "../services/gemini.js";
 import { getCampaignAnalytics } from "../services/instantly.js";
 import { getBoss } from "../lib/pgboss.js";
@@ -27,6 +28,9 @@ export function __setExtractFilters(fn) { extract = fn; }
 
 let enrich = realEnrichLeads;
 export function __setEnrichLeadsImpl(fn) { enrich = fn; }
+
+let generateTemplateEmailImpl = realGenerateTemplateEmail;
+export function __setGenerateTemplateEmailImpl(fn) { generateTemplateEmailImpl = fn; }
 
 const router = Router();
 router.use(requireAuth);
@@ -589,6 +593,16 @@ const templateSchema = z.discriminatedUnion("emailMode", [
     body: z.string().min(1)
   })
 ]);
+
+router.post("/:id/template/generate", requireRole("ADMIN", "MANAGER"), async (req, res, next) => {
+  try {
+    const campaign = await prisma.campaign.findUnique({ where: { id: req.params.id } });
+    if (!campaign) return res.status(404).json({ error: "not_found" });
+    const brandDoc = await prisma.brandDoc.findUnique({ where: { id: "singleton" } });
+    const draft = await generateTemplateEmailImpl(campaign.rawGoal, brandDoc?.content ?? null);
+    res.json(draft);
+  } catch (e) { next(e); }
+});
 
 router.get("/:id/template", async (req, res, next) => {
   try {

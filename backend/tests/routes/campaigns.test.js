@@ -1,7 +1,7 @@
 import request from "supertest";
 import { jest } from "@jest/globals";
 import { createApp } from "../../app.js";
-import { __setExtractFilters, __setEnrichLeadsImpl } from "../../routes/campaigns.js";
+import { __setExtractFilters, __setEnrichLeadsImpl, __setGenerateTemplateEmailImpl } from "../../routes/campaigns.js";
 import { prisma } from "../../lib/prisma.js";
 import { createUser, authHeader } from "../helpers/factory.js";
 import { resetDb } from "../setup.js";
@@ -551,6 +551,42 @@ describe("template routes", () => {
         .get("/api/campaigns/nonexistent-id/template")
         .set(authHeader(token));
       expect(res.status).toBe(404);
+    });
+
+    test("POST /:id/template/generate returns subject and body", async () => {
+      const { token } = await createUser({ email: `tgen1${Date.now()}@x.com`, role: "MANAGER" });
+      const id = await makeCampaign(token);
+      __setGenerateTemplateEmailImpl(jest.fn().mockResolvedValue({
+        subject: "Scale hiring at {{company}}",
+        body: "Hi {{firstName}}, I saw you're {{title}} at {{company}}..."
+      }));
+      const res = await request(app)
+        .post(`/api/campaigns/${id}/template/generate`)
+        .set(authHeader(token));
+      expect(res.status).toBe(200);
+      expect(res.body).toMatchObject({
+        subject: "Scale hiring at {{company}}",
+        body: expect.stringContaining("{{firstName}}")
+      });
+    });
+
+    test("POST /:id/template/generate returns 404 for unknown campaign", async () => {
+      const { token } = await createUser({ email: `tgen2${Date.now()}@x.com`, role: "MANAGER" });
+      __setGenerateTemplateEmailImpl(jest.fn().mockResolvedValue({ subject: "S", body: "B" }));
+      const res = await request(app)
+        .post("/api/campaigns/nonexistent-id/template/generate")
+        .set(authHeader(token));
+      expect(res.status).toBe(404);
+    });
+
+    test("POST /:id/template/generate returns 403 for VIEWER", async () => {
+      const { token: managerToken } = await createUser({ email: `tgen3m${Date.now()}@x.com`, role: "MANAGER" });
+      const { token: viewerToken } = await createUser({ email: `tgen3v${Date.now()}@x.com`, role: "VIEWER" });
+      const id = await makeCampaign(managerToken);
+      const res = await request(app)
+        .post(`/api/campaigns/${id}/template/generate`)
+        .set(authHeader(viewerToken));
+      expect(res.status).toBe(403);
     });
   });
 
