@@ -25,6 +25,7 @@ export default function EmailTemplatePanel({ campaignId, token }) {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [generating, setGenerating] = useState(false);
   const subjectRef = useRef(null);
   const bodyRef = useRef(null);
 
@@ -118,6 +119,24 @@ export default function EmailTemplatePanel({ campaignId, token }) {
     }
   }
 
+  async function handleGenerate() {
+    if ((subject.trim() || body.trim()) && !confirm("Replace existing template with AI-generated content?")) return;
+    setGenerating(true);
+    setSaveError("");
+    try {
+      const result = await apiFetch(`/api/campaigns/${campaignId}/template/generate`, {
+        token,
+        method: "POST"
+      });
+      setSubject(result.subject ?? "");
+      setBody(result.body ?? "");
+    } catch (e) {
+      setSaveError(e.data?.error || e.message || "Failed to generate template.");
+    } finally {
+      setGenerating(false);
+    }
+  }
+
   const modeBadge = emailMode === "TEMPLATE"
     ? <span className="text-xs bg-purple-100 text-purple-700 border border-purple-300 px-2 py-0.5 rounded-full font-semibold">Template</span>
     : <span className="text-xs bg-gray-100 text-gray-600 border border-gray-300 px-2 py-0.5 rounded-full">AI</span>;
@@ -152,7 +171,16 @@ export default function EmailTemplatePanel({ campaignId, token }) {
           {tab === "edit" && (
             <div className="space-y-3">
               <div>
-                <div className="text-xs text-gray-500 mb-1.5 uppercase tracking-wide">Variables — click to insert at cursor</div>
+                <div className="flex justify-between items-center mb-1.5">
+                  <div className="text-xs text-gray-500 uppercase tracking-wide">Variables — click to insert at cursor</div>
+                  <button
+                    onClick={handleGenerate}
+                    disabled={generating || saving}
+                    className="text-xs bg-purple-600 hover:bg-purple-700 text-white px-3 py-1 rounded disabled:opacity-40 font-medium"
+                  >
+                    {generating ? "Generating…" : "Generate with AI"}
+                  </button>
+                </div>
                 <div className="flex flex-wrap gap-1.5">
                   {VARIABLES.map(v => (
                     <div key={v} className="flex gap-0.5">
