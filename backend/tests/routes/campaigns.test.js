@@ -16,6 +16,7 @@ beforeEach(async () => {
     confidence: 0.9,
     needsClarification: false
   }));
+  __setGenerateTemplateEmailImpl(() => { throw new Error("generateTemplateEmailImpl not mocked in this test"); });
 });
 
 afterAll(async () => { await stopBoss(); });
