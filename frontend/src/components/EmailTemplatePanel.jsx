@@ -28,6 +28,7 @@ export default function EmailTemplatePanel({ campaignId, token }) {
   const [generating, setGenerating] = useState(false);
   const subjectRef = useRef(null);
   const bodyRef = useRef(null);
+  const generatingRef = useRef(false);
 
   const dirty = subject !== savedSubject || body !== savedBody;
 
@@ -120,9 +121,12 @@ export default function EmailTemplatePanel({ campaignId, token }) {
   }
 
   async function handleGenerate() {
+    if (generatingRef.current) return;
     if ((subject.trim() || body.trim()) && !confirm("Replace existing template with AI-generated content?")) return;
+    generatingRef.current = true;
     setGenerating(true);
     setSaveError("");
+    setSaveSuccess(false);
     try {
       const result = await apiFetch(`/api/campaigns/${campaignId}/template/generate`, {
         token,
@@ -133,6 +137,7 @@ export default function EmailTemplatePanel({ campaignId, token }) {
     } catch (e) {
       setSaveError(e.data?.error || e.message || "Failed to generate template.");
     } finally {
+      generatingRef.current = false;
       setGenerating(false);
     }
   }
