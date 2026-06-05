@@ -7,8 +7,9 @@ const prisma = new PrismaClient();
 const SEED_PASSWORD = process.env.SEED_PASSWORD || "Admin1234!";
 
 const users = [
-  { email: "vedantmadne555@gmail.com", name: "Vedant Madne", role: "ADMIN" },
-  { email: "manager@reachout.dev",      name: "Manager Demo",  role: "MANAGER" },
+  { email: "vedantmadne555@gmail.com", name: "Vedant Madne",   role: "ADMIN" },
+  { email: "manager@reachout.dev",     name: "Manager Demo",   role: "MANAGER" },
+  { email: "vedant.madne66@gmail.com", name: "Vedant (Multi)", role: "MANAGER" },
 ];
 
 async function main() {

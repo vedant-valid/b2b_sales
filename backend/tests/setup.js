@@ -1,11 +1,12 @@
 import bcrypt from "bcryptjs";
 import { prisma } from "../lib/prisma.js";
 
-const SEEDED_EMAILS = ["vedantmadne555@gmail.com", "manager@reachout.dev"];
+const SEEDED_EMAILS = ["vedantmadne555@gmail.com", "manager@reachout.dev", "vedant.madne66@gmail.com"];
 
 const SEEDED_USERS = [
-  { email: "vedantmadne555@gmail.com", name: "Vedant Madne", role: "ADMIN" },
-  { email: "manager@reachout.dev",     name: "Manager Demo", role: "MANAGER" },
+  { email: "vedantmadne555@gmail.com", name: "Vedant Madne",   role: "ADMIN" },
+  { email: "manager@reachout.dev",     name: "Manager Demo",   role: "MANAGER" },
+  { email: "vedant.madne66@gmail.com", name: "Vedant (Multi)", role: "MANAGER" },
 ];
 
 async function ensureSeededUsers() {
