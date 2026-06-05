@@ -16,11 +16,20 @@ export function errorHandler(err, req, res, _next) {
     return res.status(status).json({ error: code, message: msg(err) });
   }
 
-  // Translate Gemini/Google API transient errors to a friendly message
+  // Gemini rate limit / quota exhausted
   if (
-    err.status === 429 || err.status === 503
-    || err.message?.includes("429") || err.message?.includes("503")
+    err.status === 429
+    || err.message?.includes("429")
     || err.message?.toLowerCase().includes("resource has been exhausted")
+    || err.message?.toLowerCase().includes("quota")
+  ) {
+    return res.status(429).json({ error: "ai_rate_limit", message: "AI quota exceeded — please wait a minute and try again." });
+  }
+
+  // Gemini transient service error (all retries exhausted)
+  if (
+    err.status === 503
+    || err.message?.includes("503")
     || err.message?.toLowerCase().includes("service unavailable")
     || err.message?.toLowerCase().includes("overloaded")
   ) {
