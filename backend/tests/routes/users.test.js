@@ -18,8 +18,8 @@ describe("users routes", () => {
     await createUser({ email: "u2@x.com" });
     const res = await request(app).get("/api/users").set(authHeader(token));
     expect(res.status).toBe(200);
-    expect(res.body.users.length).toBe(2);
-    expect(res.body.users[0].password).toBeUndefined();
+    expect(res.body.users.length).toBeGreaterThanOrEqual(2);
+    expect(res.body.users.every(u => u.password === undefined)).toBe(true);
   });
 
   test("POST /api/users creates user (admin)", async () => {
