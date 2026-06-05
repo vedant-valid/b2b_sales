@@ -274,6 +274,28 @@ router.post("/:id/approve-emails", requireRole("ADMIN", "MANAGER"), async (req, 
   } catch (e) { next(e); }
 });
 
+// Re-queue email generation for leads that have an email address but no draft yet.
+// Safe to call on a RUNNING campaign — dispatch-to-instantly will re-run automatically
+// once all missing drafts are generated, pushing the new leads to the existing Instantly campaign.
+router.post("/:id/retry-emails", requireRole("ADMIN", "MANAGER"), async (req, res, next) => {
+  try {
+    const campaign = await prisma.campaign.findUnique({ where: { id: req.params.id } });
+    if (!campaign) return res.status(404).json({ error: "not_found" });
+    if (!campaign.instantlyCampaignId) return res.status(409).json({ error: "not_dispatched_yet" });
+
+    const leads = await prisma.lead.findMany({
+      where: { campaignId: campaign.id, isEnriched: true, email: { not: null }, emails: { none: {} } }
+    });
+    if (leads.length === 0) return res.json({ queued: 0 });
+
+    const boss = await getBoss();
+    for (const lead of leads) {
+      await boss.send("generate-email", { leadId: lead.id, autoDispatch: true });
+    }
+    res.json({ queued: leads.length });
+  } catch (e) { next(e); }
+});
+
 router.post("/:id/reject-emails", requireRole("ADMIN", "MANAGER"), async (req, res, next) => {
   try {
     const campaign = await prisma.campaign.findUnique({ where: { id: req.params.id } });

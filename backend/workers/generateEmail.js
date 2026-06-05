@@ -65,11 +65,19 @@ export async function runGenerateEmailJob(job) {
       }
     });
     if (pendingLeads === 0) {
-      await prisma.campaign.update({
-        where: { id: lead.campaignId },
-        data: { status: "AWAITING_EMAIL_APPROVAL" }
-      });
-      logger.info(`campaign ${lead.campaignId} awaiting email approval`);
+      const freshCampaign = await prisma.campaign.findUnique({ where: { id: lead.campaignId } });
+      if (freshCampaign?.instantlyCampaignId) {
+        // Already dispatched — re-dispatch to push newly generated emails to Instantly
+        const boss = await getBoss();
+        await boss.send("dispatch-to-instantly", { campaignId: lead.campaignId });
+        logger.info(`campaign ${lead.campaignId} re-dispatching to push new email drafts`);
+      } else {
+        await prisma.campaign.update({
+          where: { id: lead.campaignId },
+          data: { status: "AWAITING_EMAIL_APPROVAL" }
+        });
+        logger.info(`campaign ${lead.campaignId} awaiting email approval`);
+      }
     }
   }
 
