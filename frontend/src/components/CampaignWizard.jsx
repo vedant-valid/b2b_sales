@@ -31,6 +31,16 @@ export default function CampaignWizard() {
     e.preventDefault();
     setLoading(true); setError(""); setClarification("");
     try {
+      if (mode === "OUTREACH" && senders.length === 0) {
+        setError("No sending account assigned. Ask your admin to assign one from Settings → Senders.");
+        setLoading(false);
+        return;
+      }
+      if (mode === "OUTREACH" && senders.length > 1 && !senderEmail) {
+        setError("Please select a sending account.");
+        setLoading(false);
+        return;
+      }
       const body = { name, rawGoal, mode };
       if (senderEmail) body.senderEmail = senderEmail;
       if (mode === "TEST") {
@@ -53,7 +63,8 @@ export default function CampaignWizard() {
       router.push(`/campaigns/${campaign.id}`);
     } catch (e) {
       if (e.status === 422) setClarification(e.data?.clarification || "Please refine your goal.");
-      else setError(e.message);
+      else if (e.status === 429) setError("AI quota exceeded — wait a moment and try again.");
+      else setError(e.data?.message || e.message);
     } finally { setLoading(false); }
   }
 

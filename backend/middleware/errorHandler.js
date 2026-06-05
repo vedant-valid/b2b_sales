@@ -16,6 +16,11 @@ export function errorHandler(err, req, res, _next) {
     return res.status(status).json({ error: code, message: msg(err) });
   }
 
+  // Translate Gemini/Google API rate limit to a friendly message
+  if (err.status === 429 || err.message?.includes("429") || err.message?.toLowerCase().includes("resource has been exhausted")) {
+    return res.status(429).json({ error: "ai_rate_limit", message: "AI quota exceeded — wait a moment and try again." });
+  }
+
   // Log full stack for unexpected errors
   logger.error(`[${req.method} ${req.path}] ${err.stack || err.message || err}`);
 
