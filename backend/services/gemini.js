@@ -22,11 +22,28 @@ function extractJson(text) {
   return JSON.parse(raw.trim());
 }
 
-export async function generateText(prompt, { client, systemInstruction } = {}) {
+function isRateLimit(err) {
+  return err.status === 429
+    || String(err.message).includes("429")
+    || String(err.message).toLowerCase().includes("resource has been exhausted")
+    || String(err.message).toLowerCase().includes("quota");
+}
+
+export async function generateText(prompt, { client, systemInstruction, retries = 3, retryDelayMs = 2000 } = {}) {
   const c = client || (systemInstruction ? makeClientWithInstruction(systemInstruction) : getDefault());
   if (!c) throw new Error("GEMINI_API_KEY not configured");
-  const res = await c.generateContent(prompt);
-  return res.response.text();
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const res = await c.generateContent(prompt);
+      return res.response.text();
+    } catch (err) {
+      if (isRateLimit(err) && attempt < retries) {
+        await new Promise(r => setTimeout(r, retryDelayMs * Math.pow(2, attempt)));
+        continue;
+      }
+      throw err;
+    }
+  }
 }
 
 export async function generateJson(prompt, opts = {}) {
