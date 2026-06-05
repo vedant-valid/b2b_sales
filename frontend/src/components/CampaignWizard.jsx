@@ -63,7 +63,7 @@ export default function CampaignWizard() {
       router.push(`/campaigns/${campaign.id}`);
     } catch (e) {
       if (e.status === 422) setClarification(e.data?.clarification || "Please refine your goal.");
-      else if (e.status === 429) setError("AI quota exceeded — wait a moment and try again.");
+      else if (e.status === 429 || e.status === 503) setError(e.data?.message || "AI service is temporarily busy — please try again in a moment.");
       else setError(e.data?.message || e.message);
     } finally { setLoading(false); }
   }

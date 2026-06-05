@@ -22,11 +22,15 @@ function extractJson(text) {
   return JSON.parse(raw.trim());
 }
 
-function isRateLimit(err) {
+function isRetriable(err) {
   return err.status === 429
+    || err.status === 503
     || String(err.message).includes("429")
+    || String(err.message).includes("503")
     || String(err.message).toLowerCase().includes("resource has been exhausted")
-    || String(err.message).toLowerCase().includes("quota");
+    || String(err.message).toLowerCase().includes("quota")
+    || String(err.message).toLowerCase().includes("service unavailable")
+    || String(err.message).toLowerCase().includes("overloaded");
 }
 
 export async function generateText(prompt, { client, systemInstruction, retries = 3, retryDelayMs = 2000 } = {}) {
@@ -37,7 +41,7 @@ export async function generateText(prompt, { client, systemInstruction, retries 
       const res = await c.generateContent(prompt);
       return res.response.text();
     } catch (err) {
-      if (isRateLimit(err) && attempt < retries) {
+      if (isRetriable(err) && attempt < retries) {
         await new Promise(r => setTimeout(r, retryDelayMs * Math.pow(2, attempt)));
         continue;
       }
