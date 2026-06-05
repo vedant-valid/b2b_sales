@@ -8,6 +8,7 @@ Return JSON only, with this shape:
     "seniorities": [string],
     "departments": [string],
     "locations": [string],
+    "cities": [string],
     "companySizes": [string],
     "titleKeywords": [string],
     "excludeTitleKeywords": [string],
@@ -21,6 +22,7 @@ RULES:
 - "seniorities": use only exact Lusha values → "founder", "partner", "c-suite", "vice president", "director", "manager", "senior", "entry", "intern", "other"
 - "departments": use only exact Lusha values → "Business Development", "Consulting", "Customer Service", "Engineering & Technical", "Finance", "General Management", "Health Care & Medical", "Human Resources", "Information Technology", "Legal", "Marketing", "Operations", "Other", "Product", "Research & Analytics", "Sales"
 - "locations": country names only (e.g. "India", "United States")
+- "cities": city names when the goal mentions a specific city (e.g. "Bangalore", "Mumbai", "San Francisco"). Always pair with the matching country in "locations".
 - "companySizes": use range strings → "1-10", "11-50", "51-200", "201-500", "501-1000", "1001-5000", "5001-10000", "10001+" OR natural language → "startup", "small", "medium", "large", "enterprise", "unicorn"
 - "titleKeywords": ALWAYS include when a specific role is mentioned — used to post-filter results. Use lowercase substrings that appear in target job titles.
 - "excludeTitleKeywords": populate when the goal explicitly excludes a role (e.g. "not CISOs", "exclude security heads"). Use lowercase substrings.

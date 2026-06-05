@@ -68,9 +68,18 @@ function buildLushaBody(geminiFilters, page = 0, size = 25) {
     if (ids.length) contactsInclude.seniority = ids;
   }
 
-  if (geminiFilters.locations?.length) {
-    contactsInclude.locations = geminiFilters.locations.map(l => ({ country: l }));
-    companiesInclude.locations = geminiFilters.locations.map(l => ({ country: l }));
+  if (geminiFilters.locations?.length || geminiFilters.cities?.length) {
+    const countries = geminiFilters.locations || [];
+    const cities = geminiFilters.cities || [];
+    // If cities specified, build city+country pairs; otherwise country-only
+    const locationObjs = cities.length
+      ? cities.map(city => {
+          const country = countries[0] || null;
+          return country ? { city, country } : { city };
+        })
+      : countries.map(c => ({ country: c }));
+    contactsInclude.locations = locationObjs;
+    companiesInclude.locations = locationObjs;
   }
 
   // Always require work email so we can contact them
