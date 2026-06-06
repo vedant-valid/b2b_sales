@@ -1,4 +1,5 @@
 import { generateJson } from "./gemini.js";
+import { formatBrandGuidelines } from "./brandDoc.js";
 
 const SYSTEM = `You are a world-class outbound copywriter. Draft a short, personalized B2B email.
 
@@ -16,8 +17,9 @@ Rules:
 
 Return JSON: { "subject": string, "body": string }`;
 
-export async function generateDraft(lead, profile, { generate = generateJson, brandDoc = null } = {}) {
-  const opts = brandDoc ? { systemInstruction: `BRAND GUIDELINES — follow these for every output:\n${brandDoc}` } : {};
+export async function generateDraft(lead, profile, { generate = generateJson, brandFields = null } = {}) {
+  const brandText = formatBrandGuidelines(brandFields);
+  const opts = brandText ? { systemInstruction: brandText } : {};
   const prompt = `${SYSTEM}
 
 Lead:
@@ -59,8 +61,9 @@ Rules:
 
 Return JSON: { "subject": string, "body": string }`;
 
-export async function generateTemplateEmail(rawGoal, brandDoc = null, { generate = generateJson } = {}) {
-  const opts = brandDoc ? { systemInstruction: `BRAND GUIDELINES — follow these for every output:\n${brandDoc}` } : {};
+export async function generateTemplateEmail(rawGoal, brandFields = null, { generate = generateJson } = {}) {
+  const brandText = formatBrandGuidelines(brandFields);
+  const opts = brandText ? { systemInstruction: brandText } : {};
   const prompt = `${TEMPLATE_SYSTEM}
 
 Campaign goal: ${rawGoal}

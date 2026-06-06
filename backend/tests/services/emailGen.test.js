@@ -1,7 +1,7 @@
 import { jest } from "@jest/globals";
 import { generateDraft, generateTemplateEmail } from "../../services/emailGen.js";
 
-describe("emailGen", () => {
+describe("generateDraft", () => {
   test("returns subject and body", async () => {
     const fake = jest.fn().mockResolvedValue({
       subject: "Partnering on NST talent for Acme",
@@ -15,7 +15,7 @@ describe("emailGen", () => {
     expect(fake).toHaveBeenCalled();
   });
 
-  test("passes systemInstruction when brandDoc is provided", async () => {
+  test("passes systemInstruction when brandFields has content", async () => {
     let capturedOpts = null;
     const fake = jest.fn().mockImplementation(async (prompt, opts) => {
       capturedOpts = opts;
@@ -23,9 +23,22 @@ describe("emailGen", () => {
     });
     const lead = { firstName: "Alice", lastName: "Smith", title: "CTO", company: "Acme", department: "Eng" };
     const profile = { senderName: "Bob", senderCompany: "NST", valueProp: "NST builds" };
-    await generateDraft(lead, profile, { generate: fake, brandDoc: "Never say talented." });
+    await generateDraft(lead, profile, { generate: fake, brandFields: { tone: "Direct", bannedWords: "synergy" } });
     expect(capturedOpts).toHaveProperty("systemInstruction");
-    expect(capturedOpts.systemInstruction).toContain("Never say talented.");
+    expect(capturedOpts.systemInstruction).toContain("Direct");
+    expect(capturedOpts.systemInstruction).toContain("synergy");
+  });
+
+  test("passes no systemInstruction when brandFields is null", async () => {
+    let capturedOpts = null;
+    const fake = jest.fn().mockImplementation(async (prompt, opts) => {
+      capturedOpts = opts;
+      return { subject: "Test", body: "Hi" };
+    });
+    const lead = { firstName: "Alice", lastName: "Smith", title: "CTO", company: "Acme" };
+    const profile = { senderName: "Bob", senderCompany: "NST", valueProp: "NST builds" };
+    await generateDraft(lead, profile, { generate: fake, brandFields: null });
+    expect(capturedOpts).toEqual({});
   });
 });
 
@@ -45,14 +58,15 @@ describe("generateTemplateEmail", () => {
     expect(prompt).toContain("{{company}}");
   });
 
-  test("passes systemInstruction when brandDoc is provided", async () => {
+  test("passes systemInstruction when brandFields has content", async () => {
     let capturedOpts = null;
     const fake = jest.fn().mockImplementation(async (_prompt, opts) => {
       capturedOpts = opts;
       return { subject: "S", body: "B" };
     });
-    await generateTemplateEmail("find CTOs", "Never say innovative.", { generate: fake });
+    await generateTemplateEmail("find CTOs", { tone: "Concise", bannedWords: "innovative" }, { generate: fake });
     expect(capturedOpts).toHaveProperty("systemInstruction");
-    expect(capturedOpts.systemInstruction).toContain("Never say innovative.");
+    expect(capturedOpts.systemInstruction).toContain("Concise");
+    expect(capturedOpts.systemInstruction).toContain("innovative");
   });
 });
