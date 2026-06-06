@@ -1,3 +1,5 @@
+<img src="https://capsule-render.vercel.app/api?type=waving&color=6366F1,8B5CF6,06B6D4&height=220&section=header&text=AI-Powered%20B2B%20SDR%20Platform&fontSize=42&fontColor=ffffff&fontAlignY=38&desc=Automate%20Lead%20Sourcing%20%E2%86%92%20Outreach%20%E2%86%92%20Replies&descAlignY=58&descSize=18&animation=twinkling" width="100%" alt="header wave" />
+
 <div align="center">
 
 <a href="https://github.com/vedant-valid/b2b_sales">
@@ -202,3 +204,5 @@ npm run dev:frontend  # :3000
 Built by [Vedant Madne](https://github.com/vedant-valid) for Newton School of Technology's SDR team.
 
 </div>
+
+<img src="https://capsule-render.vercel.app/api?type=waving&color=6366F1,8B5CF6,06B6D4&height=120&section=footer&animation=twinkling" width="100%" alt="footer wave" />
