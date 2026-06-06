@@ -1,4 +1,5 @@
 import { generateJson } from "./gemini.js";
+import { formatBrandGuidelines } from "./brandDoc.js";
 
 const VALID = ["INTERESTED", "NOT_INTERESTED", "NEUTRAL", "CONVERTIBLE"];
 
@@ -27,11 +28,12 @@ Sentiment context guides tone:
 
 Return JSON: { "followUp": string }`;
 
-export async function draftFollowUp(replyBody, lead, sentiment, { generate = generateJson, brandDoc = null, senderName = "Vedant" } = {}) {
-  const brandContext = brandDoc ? `\n\nBrand voice guidelines:\n${brandDoc}` : "";
+export async function draftFollowUp(replyBody, lead, sentiment, { generate = generateJson, brandFields = null, senderName = "Vedant" } = {}) {
+  const brandText = formatBrandGuidelines(brandFields);
+  const brandContext = brandText ? `\n\nBrand voice guidelines:\n${brandText}` : "";
   const prompt = `${FOLLOWUP_PROMPT}${brandContext}
 
-Lead name: ${lead.firstName} ${lead.lastName}
+Lead name: ${lead.firstName} ${lead.lastName || ""}
 Sender name: ${senderName}
 
 Reply from ${lead.firstName}:
