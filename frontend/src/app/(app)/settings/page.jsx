@@ -199,7 +199,7 @@ export default function SettingsPage() {
           <p className="text-xs text-gray-400">Comma-separated or one per line. AI will never use these.</p>
           <textarea
             rows={2}
-            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm resize-y font-mono"
+            className={`w-full border rounded-md px-3 py-2 text-sm resize-y font-mono ${extracted ? "bg-amber-50 border-amber-300" : "border-gray-300"}`}
             placeholder="synergy, leverage, disrupt, game-changer"
             value={fields.bannedWords}
             onChange={e => setField("bannedWords", e.target.value)}
