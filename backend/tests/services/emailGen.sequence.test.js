@@ -5,6 +5,10 @@ const fakeGenerate = jest.fn();
 
 beforeEach(() => fakeGenerate.mockClear());
 
+const currentSteps = [
+  { stepNumber: 1, delayDays: 0, subject: "Old subject", body: "Old body." }
+];
+
 describe("generateSequence", () => {
   test("returns parsed steps array from AI", async () => {
     fakeGenerate.mockResolvedValueOnce([
@@ -18,22 +22,19 @@ describe("generateSequence", () => {
     expect(result[1].delayDays).toBe(3);
   });
 
-  test("injects brand guidelines when provided", async () => {
+  test("injects brand guidelines into systemInstruction when provided", async () => {
     fakeGenerate.mockResolvedValueOnce([
       { stepNumber: 1, delayDays: 0, subject: "Sub", body: "Body" }
     ]);
     const brandFields = { tone: "professional", campaignGoals: "book calls", targetPersonas: null, proofPoints: null, bannedWords: null };
     await generateSequence("goal", brandFields, { generate: fakeGenerate });
-    const calledPrompt = fakeGenerate.mock.calls[0][0];
-    expect(calledPrompt).toContain("professional");
+    const [, calledOpts] = fakeGenerate.mock.calls[0];
+    expect(calledOpts.systemInstruction).toContain("professional");
   });
 });
 
 describe("reviseSequence", () => {
   test("passes current steps and user prompt to AI and returns revised steps", async () => {
-    const currentSteps = [
-      { stepNumber: 1, delayDays: 0, subject: "Old subject", body: "Old body." }
-    ];
     fakeGenerate.mockResolvedValueOnce([
       { stepNumber: 1, delayDays: 0, subject: "Shorter subject", body: "Short." }
     ]);
@@ -42,5 +43,15 @@ describe("reviseSequence", () => {
     const calledPrompt = fakeGenerate.mock.calls[0][0];
     expect(calledPrompt).toContain("make step 1 shorter");
     expect(calledPrompt).toContain("Old subject");
+  });
+
+  test("injects brand guidelines into systemInstruction when provided", async () => {
+    fakeGenerate.mockResolvedValueOnce([
+      { stepNumber: 1, delayDays: 0, subject: "Sub", body: "Body" }
+    ]);
+    const brandFields = { tone: "bold", campaignGoals: null, targetPersonas: null, proofPoints: null, bannedWords: null };
+    await reviseSequence(currentSteps, "shorten step 1", brandFields, { generate: fakeGenerate });
+    const [, calledOpts] = fakeGenerate.mock.calls[0];
+    expect(calledOpts.systemInstruction).toContain("bold");
   });
 });

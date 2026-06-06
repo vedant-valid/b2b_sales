@@ -93,8 +93,7 @@ Rules:
 export async function generateSequence(rawGoal, brandFields = null, { generate = generateJson } = {}) {
   const brandText = formatBrandGuidelines(brandFields);
   const opts = brandText ? { systemInstruction: brandText } : {};
-  const brandSection = brandText ? `\n\n${brandText}` : "";
-  const prompt = `${SEQUENCE_SYSTEM}\n\nCampaign goal: ${rawGoal}${brandSection}\n\nJSON array:`;
+  const prompt = `${SEQUENCE_SYSTEM}\n\nCampaign goal: ${rawGoal}\n\nJSON array:`;
   return generate(prompt, opts);
 }
 
@@ -105,14 +104,6 @@ Return ONLY the full revised sequence as a JSON array in the same format. Keep u
 export async function reviseSequence(currentSteps, userPrompt, brandFields = null, { generate = generateJson } = {}) {
   const brandText = formatBrandGuidelines(brandFields);
   const opts = brandText ? { systemInstruction: brandText } : {};
-  const brandSection = brandText ? `\n\n${brandText}` : "";
-  const prompt = `${REVISE_SYSTEM}${brandSection}
-
-Current sequence:
-${JSON.stringify(currentSteps, null, 2)}
-
-User request: ${userPrompt}
-
-JSON array:`;
+  const prompt = `${REVISE_SYSTEM}\n\nCurrent sequence:\n${JSON.stringify(currentSteps, null, 2)}\n\nUser request: ${userPrompt}\n\nJSON array:`;
   return generate(prompt, opts);
 }
