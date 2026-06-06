@@ -69,3 +69,40 @@ describe("leads routes", () => {
     expect(ids).not.toContain(leadWithout.id);
   });
 });
+
+describe("GET /api/leads/:id/thread", () => {
+  test("returns emails and replies merged in chronological order", async () => {
+    const { token } = await createUser({ role: "VIEWER", email: `vt${Date.now()}${Math.random()}@x.com` });
+    const lead = await seedLead();
+    await prisma.email.create({
+      data: { leadId: lead.id, subject: "Hello", body: "Hi Alice", status: "SENT", sentAt: new Date("2026-01-01T10:00:00Z") }
+    });
+    await prisma.reply.create({
+      data: { leadId: lead.id, body: "Interested!", sentiment: "INTERESTED", receivedAt: new Date("2026-01-01T11:00:00Z") }
+    });
+    const res = await request(app).get(`/api/leads/${lead.id}/thread`).set(authHeader(token));
+    expect(res.status).toBe(200);
+    expect(res.body.messages).toHaveLength(2);
+    expect(res.body.messages[0].direction).toBe("outbound");
+    expect(res.body.messages[0].subject).toBe("Hello");
+    expect(res.body.messages[1].direction).toBe("inbound");
+    expect(res.body.messages[1].sentiment).toBe("INTERESTED");
+  });
+
+  test("returns 404 for unknown lead", async () => {
+    const { token } = await createUser({ role: "VIEWER", email: `vt2${Date.now()}${Math.random()}@x.com` });
+    const res = await request(app).get("/api/leads/nonexistent/thread").set(authHeader(token));
+    expect(res.status).toBe(404);
+  });
+
+  test("excludes DRAFT emails from the thread", async () => {
+    const { token } = await createUser({ role: "VIEWER", email: `vt3${Date.now()}${Math.random()}@x.com` });
+    const lead = await seedLead();
+    await prisma.email.create({
+      data: { leadId: lead.id, subject: "Draft", body: "Not sent yet", status: "DRAFT" }
+    });
+    const res = await request(app).get(`/api/leads/${lead.id}/thread`).set(authHeader(token));
+    expect(res.status).toBe(200);
+    expect(res.body.messages).toHaveLength(0);
+  });
+});

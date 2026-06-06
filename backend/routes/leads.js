@@ -38,6 +38,36 @@ router.get("/:id", async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+router.get("/:id/thread", async (req, res, next) => {
+  try {
+    const lead = await prisma.lead.findUnique({
+      where: { id: req.params.id },
+      include: {
+        emails: { where: { status: "SENT" }, orderBy: { sentAt: "asc" } },
+        replies: { orderBy: { receivedAt: "asc" } }
+      }
+    });
+    if (!lead) return res.status(404).json({ error: "not_found" });
+    const messages = [
+      ...lead.emails.map(e => ({
+        id: e.id,
+        direction: "outbound",
+        subject: e.subject,
+        body: e.body,
+        timestamp: e.sentAt || e.createdAt
+      })),
+      ...lead.replies.map(r => ({
+        id: r.id,
+        direction: "inbound",
+        body: r.body,
+        timestamp: r.receivedAt,
+        sentiment: r.sentiment
+      }))
+    ].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    res.json({ messages });
+  } catch (e) { next(e); }
+});
+
 const patchSchema = z.object({
   status: z.enum(["NEW","CONTACTED","REPLIED","INTERESTED","NOT_INTERESTED","NEUTRAL","CONVERTIBLE","SKIPPED"]).optional(),
   notes: z.string().optional()
