@@ -9,6 +9,7 @@ export default function EmailSequencePanel({ campaignId, token }) {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [revising, setRevising] = useState(false);
+  const [approving, setApproving] = useState(false);
   const [revisePrompt, setRevisePrompt] = useState("");
   const [error, setError] = useState("");
   const [savedSteps, setSavedSteps] = useState([]);
@@ -21,7 +22,7 @@ export default function EmailSequencePanel({ campaignId, token }) {
         setSavedSteps(s);
         setApproved(sequenceApproved);
       })
-      .catch(() => {});
+      .catch(e => setError(e.message || "Failed to load sequence."));
   }, [open, campaignId, token]);
 
   const dirty = JSON.stringify(steps) !== JSON.stringify(savedSteps);
@@ -80,13 +81,14 @@ export default function EmailSequencePanel({ campaignId, token }) {
   }
 
   async function handleApprove() {
+    setApproving(true);
     setError("");
     try {
       await apiFetch(`/api/campaigns/${campaignId}/sequence/approve`, { token, method: "POST" });
       setApproved(true);
     } catch (e) {
       setError(e.data?.message || e.message || "Approve failed.");
-    }
+    } finally { setApproving(false); }
   }
 
   const approvedBadge = approved
@@ -219,9 +221,10 @@ export default function EmailSequencePanel({ campaignId, token }) {
               {!approved && (
                 <button
                   onClick={handleApprove}
-                  className="text-sm bg-green-600 hover:bg-green-700 text-white px-4 py-1.5 rounded"
+                  disabled={approving}
+                  className="text-sm bg-green-600 hover:bg-green-700 text-white px-4 py-1.5 rounded disabled:opacity-40"
                 >
-                  Approve sequence
+                  {approving ? "Approving…" : "Approve sequence"}
                 </button>
               )}
             </div>
