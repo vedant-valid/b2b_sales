@@ -3,6 +3,8 @@ import { createApp } from "../../app.js";
 import { prisma } from "../../lib/prisma.js";
 import { createUser, authHeader } from "../helpers/factory.js";
 import { resetDb } from "../setup.js";
+import { jest } from "@jest/globals";
+import { __setInstantlyImpl } from "../../routes/leads.js";
 
 const app = createApp();
 beforeEach(async () => { await resetDb(); });
@@ -104,5 +106,72 @@ describe("GET /api/leads/:id/thread", () => {
     const res = await request(app).get(`/api/leads/${lead.id}/thread`).set(authHeader(token));
     expect(res.status).toBe(200);
     expect(res.body.messages).toHaveLength(0);
+  });
+});
+
+describe("POST /api/leads/:id/reply", () => {
+  let fakeInstantly;
+  beforeEach(() => {
+    fakeInstantly = { sendSubsequence: jest.fn().mockResolvedValue(undefined) };
+    __setInstantlyImpl(fakeInstantly);
+  });
+
+  async function seedLeadWithInstantly() {
+    const { user } = await createUser({ email: `ui${Date.now()}${Math.random()}@x.com` });
+    const campaign = await prisma.campaign.create({
+      data: {
+        name: "C", rawGoal: "g", extractedFilters: {},
+        createdById: user.id, instantlyCampaignId: "ic_test_123"
+      }
+    });
+    return prisma.lead.create({
+      data: { firstName: "Bob", lastName: "Jones", email: "bob@example.com", campaignId: campaign.id }
+    });
+  }
+
+  test("sends follow-up and creates Email record", async () => {
+    const { token } = await createUser({ role: "MANAGER", email: `mr${Date.now()}${Math.random()}@x.com` });
+    const lead = await seedLeadWithInstantly();
+    const res = await request(app)
+      .post(`/api/leads/${lead.id}/reply`)
+      .set(authHeader(token))
+      .send({ body: "Monday at 10am works." });
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    expect(fakeInstantly.sendSubsequence).toHaveBeenCalledWith("ic_test_123", "bob@example.com", "Monday at 10am works.");
+    const email = await prisma.email.findFirst({ where: { leadId: lead.id } });
+    expect(email.status).toBe("SENT");
+    expect(email.body).toBe("Monday at 10am works.");
+  });
+
+  test("returns 409 when campaign has no instantlyCampaignId", async () => {
+    const { token } = await createUser({ role: "MANAGER", email: `mr2${Date.now()}${Math.random()}@x.com` });
+    const lead = await seedLead();
+    const res = await request(app)
+      .post(`/api/leads/${lead.id}/reply`)
+      .set(authHeader(token))
+      .send({ body: "Hello again." });
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe("campaign_not_dispatched");
+  });
+
+  test("returns 400 when body is missing", async () => {
+    const { token } = await createUser({ role: "MANAGER", email: `mr3${Date.now()}${Math.random()}@x.com` });
+    const lead = await seedLeadWithInstantly();
+    const res = await request(app)
+      .post(`/api/leads/${lead.id}/reply`)
+      .set(authHeader(token))
+      .send({});
+    expect(res.status).toBe(400);
+  });
+
+  test("returns 403 for viewer", async () => {
+    const { token } = await createUser({ role: "VIEWER", email: `vr${Date.now()}${Math.random()}@x.com` });
+    const lead = await seedLeadWithInstantly();
+    const res = await request(app)
+      .post(`/api/leads/${lead.id}/reply`)
+      .set(authHeader(token))
+      .send({ body: "Hello." });
+    expect(res.status).toBe(403);
   });
 });

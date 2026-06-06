@@ -3,6 +3,10 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/auth.js";
 import { requireRole } from "../middleware/rbac.js";
+import { sendSubsequence as realSendSubsequence } from "../services/instantly.js";
+
+let instantly = { sendSubsequence: realSendSubsequence };
+export function __setInstantlyImpl(impl) { instantly = impl; }
 
 const router = Router();
 router.use(requireAuth);
@@ -65,6 +69,31 @@ router.get("/:id/thread", async (req, res, next) => {
       }))
     ].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
     res.json({ messages });
+  } catch (e) { next(e); }
+});
+
+router.post("/:id/reply", requireRole("ADMIN", "MANAGER"), async (req, res, next) => {
+  try {
+    const { body } = req.body || {};
+    if (!body || !body.trim()) return res.status(400).json({ error: "missing_body" });
+    const lead = await prisma.lead.findUnique({
+      where: { id: req.params.id },
+      include: { campaign: { select: { instantlyCampaignId: true } } }
+    });
+    if (!lead) return res.status(404).json({ error: "not_found" });
+    if (!lead.email) return res.status(422).json({ error: "lead_has_no_email" });
+    if (!lead.campaign.instantlyCampaignId) return res.status(409).json({ error: "campaign_not_dispatched" });
+    await instantly.sendSubsequence(lead.campaign.instantlyCampaignId, lead.email, body.trim());
+    await prisma.email.create({
+      data: {
+        leadId: lead.id,
+        subject: "Re:",
+        body: body.trim(),
+        status: "SENT",
+        sentAt: new Date()
+      }
+    });
+    res.json({ ok: true });
   } catch (e) { next(e); }
 });
 
