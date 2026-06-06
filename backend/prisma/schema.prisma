@@ -92,8 +92,10 @@ model Campaign {
   emailMode           EmailMode       @default(AI)
   emailTemplateSubject String?
   emailTemplateBody   String?
-  senderEmail         String?
-  createdAt           DateTime        @default(now())
+  senderEmail          String?
+  sequenceApproved     Boolean         @default(false)
+  sequenceSteps        SequenceStep[]
+  createdAt            DateTime        @default(now())
 }
 
 model Lead {
@@ -194,4 +196,17 @@ model UserSenderAccount {
   assignedAt  DateTime      @default(now())
 
   @@id([userId, senderEmail])
+}
+
+model SequenceStep {
+  id         String   @id @default(cuid())
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  campaignId String
+  stepNumber Int
+  subject    String
+  body       String
+  delayDays  Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  @@unique([campaignId, stepNumber])
 }
