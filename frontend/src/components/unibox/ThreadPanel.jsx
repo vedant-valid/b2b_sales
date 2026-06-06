@@ -24,6 +24,8 @@ export default function ThreadPanel({ lead }) {
     try {
       const { messages } = await apiFetch(`/api/leads/${lead.id}/thread`, { token: session.backendToken });
       setMessages(messages);
+    } catch {
+      setError("Failed to load thread.");
     } finally {
       setLoading(false);
     }
@@ -41,12 +43,12 @@ export default function ThreadPanel({ lead }) {
     setError(null);
     try {
       await apiFetch(`/api/leads/${lead.id}/reply`, {
-        token: session.backendToken,
+        token: session?.backendToken,
         method: "POST",
         body: { body: replyBody },
       });
       setReplyBody("");
-      await loadThread();
+      loadThread().catch(() => {});
     } catch (e) {
       setError(
         e.message === "campaign_not_dispatched"
@@ -95,7 +97,7 @@ export default function ThreadPanel({ lead }) {
                 {new Date(msg.timestamp).toLocaleString()}
                 {msg.sentiment && (
                   <span className={`ml-2 font-medium ${SENTIMENT_COLORS[msg.sentiment] ?? ""}`}>
-                    {msg.sentiment.charAt(0) + msg.sentiment.slice(1).toLowerCase()}
+                    {msg.sentiment.split("_").map(w => w.charAt(0) + w.slice(1).toLowerCase()).join(" ")}
                   </span>
                 )}
               </div>
