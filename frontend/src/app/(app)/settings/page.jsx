@@ -2,9 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
-import { apiFetch } from "@/lib/api";
-
-const BASE = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:4000";
+import { apiFetch, BASE } from "@/lib/api";
 
 const DELIVERABILITY_ITEMS = [
   { id: "domain", label: "Separate sending domain configured in Instantly.ai (e.g. recruit-nst.com)" },
@@ -72,7 +70,14 @@ export default function SettingsPage() {
         body: form
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "extract_failed");
+      if (!res.ok) {
+        const errMessages = {
+          no_file: "No file received — please try again.",
+          unsupported_file_type: "Only PDF and DOCX files are supported.",
+          ai_rate_limit: "AI is rate-limited — wait a moment and try again.",
+        };
+        throw new Error(errMessages[data.error] || "Extraction failed — please try again.");
+      }
       if (!data.fields) throw new Error("No fields extracted from document");
       setFields({
         tone: data.fields.tone ?? "",
