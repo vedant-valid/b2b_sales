@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import FilterPreview from "@/components/FilterPreview";
 import EmailTemplatePanel from "@/components/EmailTemplatePanel";
+import EmailSequencePanel from "@/components/EmailSequencePanel";
 import JobProgressBar from "@/components/JobProgressBar";
 import LeadApprovalTable from "@/components/LeadApprovalTable";
 import Link from "next/link";
@@ -266,6 +267,13 @@ export default function CampaignDetailPage({ params }) {
 
       {!isViewer && (
         <EmailTemplatePanel
+          campaignId={id}
+          token={session?.backendToken}
+        />
+      )}
+
+      {!isViewer && (
+        <EmailSequencePanel
           campaignId={id}
           token={session?.backendToken}
         />
