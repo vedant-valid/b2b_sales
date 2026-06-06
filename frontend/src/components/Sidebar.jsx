@@ -10,6 +10,7 @@ const NAV = [
   { href: "/dashboard",  label: "Dashboard",  icon: "/icon-dashboard.png" },
   { href: "/campaigns",  label: "Campaigns",  icon: "/icon-campaigns.png" },
   { href: "/leads",      label: "Leads",      icon: "/icon-leads.png" },
+  { href: "/unibox",     label: "Unibox",     icon: "/icon-replies.png" },
   { href: "/replies",    label: "Replies",    icon: "/icon-replies.png" },
   { href: "/export",     label: "Export",     icon: "/icon-export.png" },
   { href: "/settings",   label: "Settings",   icon: "/icon-settings.png" },
