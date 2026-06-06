@@ -22,7 +22,7 @@ router.get("/", async (req, res, next) => {
       where,
       include: {
         _count: { select: { emails: true, replies: true } },
-        campaign: { select: { mode: true } }
+        campaign: { select: { mode: true, instantlyCampaignId: true } }
       },
       orderBy: { createdAt: "desc" },
       take: 500
@@ -84,13 +84,19 @@ router.post("/:id/reply", requireRole("ADMIN", "MANAGER"), async (req, res, next
     if (!lead.email) return res.status(422).json({ error: "lead_has_no_email" });
     if (!lead.campaign.instantlyCampaignId) return res.status(409).json({ error: "campaign_not_dispatched" });
     await instantly.sendSubsequence(lead.campaign.instantlyCampaignId, lead.email, body.trim());
+    const maxVersionRow = await prisma.email.aggregate({
+      where: { leadId: lead.id },
+      _max: { version: true }
+    });
+    const nextVersion = (maxVersionRow._max.version ?? 0) + 1;
     await prisma.email.create({
       data: {
         leadId: lead.id,
         subject: "Re:",
         body: body.trim(),
         status: "SENT",
-        sentAt: new Date()
+        sentAt: new Date(),
+        version: nextVersion
       }
     });
     res.json({ ok: true });

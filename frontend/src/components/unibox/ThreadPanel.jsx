@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { apiFetch } from "@/lib/api";
 
@@ -10,6 +10,10 @@ const SENTIMENT_COLORS = {
   NOT_INTERESTED: "text-red-500",
 };
 
+function sentimentLabel(s) {
+  return s.split("_").map(w => w.charAt(0) + w.slice(1).toLowerCase()).join(" ");
+}
+
 export default function ThreadPanel({ lead }) {
   const { data: session } = useSession();
   const [messages, setMessages] = useState([]);
@@ -18,25 +22,29 @@ export default function ThreadPanel({ lead }) {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState(null);
 
-  const loadThread = useCallback(async () => {
-    if (!lead || !session?.backendToken) return;
-    setLoading(true);
-    try {
-      const { messages } = await apiFetch(`/api/leads/${lead.id}/thread`, { token: session.backendToken });
-      setMessages(messages);
-    } catch {
-      setError("Failed to load thread.");
-    } finally {
-      setLoading(false);
-    }
-  }, [lead?.id, session?.backendToken]);
-
   useEffect(() => {
     setMessages([]);
     setReplyBody("");
     setError(null);
-    loadThread();
-  }, [loadThread]);
+    if (!lead || !session?.backendToken) return;
+    let cancelled = false;
+    setLoading(true);
+    apiFetch(`/api/leads/${lead.id}/thread`, { token: session.backendToken })
+      .then(({ messages }) => { if (!cancelled) setMessages(messages); })
+      .catch(() => { if (!cancelled) setError("Failed to load thread."); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [lead?.id, session?.backendToken]);
+
+  async function reloadThread() {
+    if (!lead || !session?.backendToken) return;
+    try {
+      const { messages } = await apiFetch(`/api/leads/${lead.id}/thread`, { token: session.backendToken });
+      setMessages(messages);
+    } catch {
+      // best-effort reload; send already succeeded
+    }
+  }
 
   async function sendReply() {
     setSending(true);
@@ -48,17 +56,18 @@ export default function ThreadPanel({ lead }) {
         body: { body: replyBody },
       });
       setReplyBody("");
-      loadThread().catch(() => {});
+      reloadThread();
     } catch (e) {
-      setError(
-        e.message === "campaign_not_dispatched"
-          ? "Campaign not yet sent to Instantly."
-          : e.message || "Failed to send."
-      );
+      const msg = e.message;
+      if (msg === "campaign_not_dispatched") setError("Campaign not yet sent to Instantly.");
+      else if (msg === "lead_has_no_email") setError("This lead has no email address.");
+      else setError(msg || "Failed to send.");
     } finally {
       setSending(false);
     }
   }
+
+  const canSend = !sending && replyBody.trim().length > 0;
 
   if (!lead) {
     return (
@@ -97,7 +106,7 @@ export default function ThreadPanel({ lead }) {
                 {new Date(msg.timestamp).toLocaleString()}
                 {msg.sentiment && (
                   <span className={`ml-2 font-medium ${SENTIMENT_COLORS[msg.sentiment] ?? ""}`}>
-                    {msg.sentiment.split("_").map(w => w.charAt(0) + w.slice(1).toLowerCase()).join(" ")}
+                    {sentimentLabel(msg.sentiment)}
                   </span>
                 )}
               </div>
@@ -117,7 +126,7 @@ export default function ThreadPanel({ lead }) {
         />
         <div className="flex justify-end">
           <button
-            disabled={sending || !replyBody.trim()}
+            disabled={!canSend}
             onClick={sendReply}
             className="bg-black text-white text-sm px-4 py-1.5 rounded disabled:opacity-40"
           >
