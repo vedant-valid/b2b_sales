@@ -58,7 +58,8 @@ export default function SettingsPage() {
 
   async function onUpload(e) {
     const file = e.target.files?.[0];
-    if (!file) return;
+    e.target.value = "";
+    if (!file || !token) return;
     setExtracting(true);
     setExtractError("");
     setExtracted(false);
@@ -72,6 +73,7 @@ export default function SettingsPage() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "extract_failed");
+      if (!data.fields) throw new Error("No fields extracted from document");
       setFields({
         tone: data.fields.tone ?? "",
         campaignGoals: data.fields.campaignGoals ?? "",
@@ -85,7 +87,6 @@ export default function SettingsPage() {
       setExtractError(err.message || "Extraction failed");
     } finally {
       setExtracting(false);
-      e.target.value = "";
     }
   }
 
