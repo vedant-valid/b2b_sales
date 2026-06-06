@@ -174,4 +174,34 @@ describe("POST /api/leads/:id/reply", () => {
       .send({ body: "Hello." });
     expect(res.status).toBe(403);
   });
+
+  test("returns 404 for unknown lead", async () => {
+    const { token } = await createUser({ role: "MANAGER", email: `mr4${Date.now()}${Math.random()}@x.com` });
+    const res = await request(app)
+      .post("/api/leads/nonexistent/reply")
+      .set(authHeader(token))
+      .send({ body: "Hello." });
+    expect(res.status).toBe(404);
+    expect(res.body.error).toBe("not_found");
+  });
+
+  test("returns 422 when lead has no email address", async () => {
+    const { token } = await createUser({ role: "MANAGER", email: `mr5${Date.now()}${Math.random()}@x.com` });
+    const { user } = await createUser({ email: `ui2${Date.now()}${Math.random()}@x.com` });
+    const campaign = await prisma.campaign.create({
+      data: {
+        name: "C", rawGoal: "g", extractedFilters: {},
+        createdById: user.id, instantlyCampaignId: "ic_test_456"
+      }
+    });
+    const lead = await prisma.lead.create({
+      data: { firstName: "No", lastName: "Email", campaignId: campaign.id }
+    });
+    const res = await request(app)
+      .post(`/api/leads/${lead.id}/reply`)
+      .set(authHeader(token))
+      .send({ body: "Hello." });
+    expect(res.status).toBe(422);
+    expect(res.body.error).toBe("lead_has_no_email");
+  });
 });
