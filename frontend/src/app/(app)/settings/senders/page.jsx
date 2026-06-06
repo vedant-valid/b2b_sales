@@ -100,7 +100,7 @@ export default function SendersPage() {
                   <div className="flex flex-wrap gap-1">
                     {s.assignments.map(a => (
                       <span key={a.user.id} className="flex items-center gap-1 bg-gray-100 px-2 py-0.5 rounded text-xs">
-                        {a.user.name || a.user.email}
+                        {a.user.name ? `${a.user.name} (${a.user.email})` : a.user.email}
                         <button
                           onClick={() => onUnassign(s.email, a.user.id)}
                           className="text-gray-400 hover:text-red-600 ml-1"
@@ -119,7 +119,7 @@ export default function SendersPage() {
                     {users
                       .filter(u => !s.assignments.some(a => a.user.id === u.id))
                       .map(u => (
-                        <option key={u.id} value={u.id}>{u.name || u.email}</option>
+                        <option key={u.id} value={u.id}>{u.name ? `${u.name} (${u.email})` : u.email}</option>
                       ))
                     }
                   </select>
