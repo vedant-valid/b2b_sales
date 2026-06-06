@@ -18,7 +18,7 @@ export function __setReviseSequenceImpl(fn) { reviseSequenceFn = fn; }
 
 const stepSchema = z.object({
   stepNumber: z.number().int().positive(),
-  subject: z.string().min(1).max(200),
+  subject: z.string().min(1).max(60),
   body: z.string().min(1),
   delayDays: z.number().int().min(0),
 });
@@ -32,9 +32,9 @@ async function getCampaignOrFail(id, res) {
 }
 
 async function replaceSteps(campaignId, steps) {
-  await prisma.$transaction([
-    prisma.sequenceStep.deleteMany({ where: { campaignId } }),
-    prisma.sequenceStep.createMany({
+  return prisma.$transaction(async (tx) => {
+    await tx.sequenceStep.deleteMany({ where: { campaignId } });
+    await tx.sequenceStep.createMany({
       data: steps.map(s => ({
         campaignId,
         stepNumber: s.stepNumber,
@@ -42,11 +42,9 @@ async function replaceSteps(campaignId, steps) {
         body: s.body,
         delayDays: s.delayDays,
       })),
-    }),
-  ]);
-  return prisma.sequenceStep.findMany({
-    where: { campaignId },
-    orderBy: { stepNumber: "asc" },
+    });
+    await tx.campaign.update({ where: { id: campaignId }, data: { sequenceApproved: false } });
+    return tx.sequenceStep.findMany({ where: { campaignId }, orderBy: { stepNumber: "asc" } });
   });
 }
 
@@ -70,8 +68,9 @@ router.post("/:id/sequence/generate", requireRole("ADMIN", "MANAGER"), async (re
     if (!campaign) return;
     const brandFields = await prisma.brandDoc.findUnique({ where: { id: "singleton" } });
     const raw = await generateSequenceFn(campaign.rawGoal, brandFields);
-    const steps = await replaceSteps(campaign.id, raw);
-    await prisma.campaign.update({ where: { id: campaign.id }, data: { sequenceApproved: false } });
+    const validation = z.array(stepSchema).safeParse(raw);
+    if (!validation.success) return res.status(502).json({ error: "ai_output_invalid", message: "AI returned an invalid sequence format — please try again." });
+    const steps = await replaceSteps(campaign.id, validation.data);
     res.json({ steps });
   } catch (e) { next(e); }
 });
@@ -84,7 +83,6 @@ router.put("/:id/sequence", requireRole("ADMIN", "MANAGER"), async (req, res, ne
     const parsed = saveSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: "invalid_input", issues: parsed.error.issues });
     const steps = await replaceSteps(campaign.id, parsed.data.steps);
-    await prisma.campaign.update({ where: { id: campaign.id }, data: { sequenceApproved: false } });
     res.json({ steps });
   } catch (e) { next(e); }
 });
@@ -103,8 +101,9 @@ router.post("/:id/sequence/revise", requireRole("ADMIN", "MANAGER"), async (req,
     if (current.length === 0) return res.status(400).json({ error: "no_sequence", message: "Generate a sequence first." });
     const brandFields = await prisma.brandDoc.findUnique({ where: { id: "singleton" } });
     const raw = await reviseSequenceFn(current, parsed.data.prompt, brandFields);
-    const steps = await replaceSteps(campaign.id, raw);
-    await prisma.campaign.update({ where: { id: campaign.id }, data: { sequenceApproved: false } });
+    const validation = z.array(stepSchema).safeParse(raw);
+    if (!validation.success) return res.status(502).json({ error: "ai_output_invalid", message: "AI returned an invalid sequence format — please try again." });
+    const steps = await replaceSteps(campaign.id, validation.data);
     res.json({ steps });
   } catch (e) { next(e); }
 });
