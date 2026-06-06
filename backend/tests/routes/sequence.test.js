@@ -48,6 +48,12 @@ describe("GET /api/campaigns/:id/sequence", () => {
     const res = await request(app).get("/api/campaigns/fake/sequence");
     expect(res.status).toBe(401);
   });
+
+  test("404 for unknown campaign id", async () => {
+    const { token } = await makeManager();
+    const res = await request(app).get("/api/campaigns/nonexistent-id/sequence").set(authHeader(token));
+    expect(res.status).toBe(404);
+  });
 });
 
 describe("POST /api/campaigns/:id/sequence/generate", () => {
@@ -68,7 +74,8 @@ describe("POST /api/campaigns/:id/sequence/generate", () => {
     const { token } = await makeManager();
     const id = await makeCampaign(token);
     await request(app).post(`/api/campaigns/${id}/sequence/generate`).set(authHeader(token));
-    await request(app).post(`/api/campaigns/${id}/sequence/approve`).set(authHeader(token));
+    const approveRes = await request(app).post(`/api/campaigns/${id}/sequence/approve`).set(authHeader(token));
+    expect(approveRes.status).toBe(200);
     await request(app).post(`/api/campaigns/${id}/sequence/generate`).set(authHeader(token));
     const check = await request(app).get(`/api/campaigns/${id}/sequence`).set(authHeader(token));
     expect(check.body.sequenceApproved).toBe(false);
