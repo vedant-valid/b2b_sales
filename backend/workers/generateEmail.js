@@ -38,8 +38,8 @@ export async function runGenerateEmailJob(job) {
   } else if (campaign?.emailMode === "TEMPLATE" && campaign.emailTemplateSubject && campaign.emailTemplateBody) {
     draft = await renderTemplate(campaign.emailTemplateSubject, campaign.emailTemplateBody, lead);
   } else {
-    const brandDoc = await prisma.brandDoc.findUnique({ where: { id: "singleton" } });
-    draft = await generateDraft(lead, DEFAULT_PROFILE, { brandDoc: brandDoc?.content ?? null });
+    const brandFields = await prisma.brandDoc.findUnique({ where: { id: "singleton" } });
+    draft = await generateDraft(lead, DEFAULT_PROFILE, { brandFields });
   }
   const sentEmail = await prisma.email.findFirst({ where: { leadId, status: "SENT" } });
   if (sentEmail) {

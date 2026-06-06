@@ -113,8 +113,8 @@ router.post("/", requireRole("ADMIN", "MANAGER"), async (req, res, next) => {
     }
 
     // OUTREACH — unchanged
-    const brandDoc = await prisma.brandDoc.findUnique({ where: { id: "singleton" } });
-    const extraction = await extract(rawGoal, { brandDoc: brandDoc?.content ?? null });
+    const brandFields = await prisma.brandDoc.findUnique({ where: { id: "singleton" } });
+    const extraction = await extract(rawGoal, { brandFields });
     if (extraction.needsClarification) {
       return res.status(422).json({ error: "needs_clarification", clarification: extraction.clarification });
     }
@@ -620,8 +620,8 @@ router.post("/:id/template/generate", requireRole("ADMIN", "MANAGER"), async (re
   try {
     const campaign = await prisma.campaign.findUnique({ where: { id: req.params.id } });
     if (!campaign) return res.status(404).json({ error: "not_found" });
-    const brandDoc = await prisma.brandDoc.findUnique({ where: { id: "singleton" } });
-    const draft = await generateTemplateEmailImpl(campaign.rawGoal, brandDoc?.content ?? null);
+    const brandFields = await prisma.brandDoc.findUnique({ where: { id: "singleton" } });
+    const draft = await generateTemplateEmailImpl(campaign.rawGoal, brandFields);
     res.json(draft);
   } catch (e) { next(e); }
 });

@@ -29,10 +29,10 @@ describe("generateEmail worker", () => {
     expect(emails[0].version).toBe(1);
   });
 
-  test("passes brand doc content to generateDraft when it exists", async () => {
+  test("passes brand doc fields to generateDraft when it exists", async () => {
     const { user } = await createUser({ email: `bd${Date.now()}@x.com`, role: "ADMIN" });
     await prisma.brandDoc.create({
-      data: { id: "singleton", content: "NST brand content" }
+      data: { id: "singleton", tone: "Professional", proofPoints: "3x pipeline for Acme" }
     });
 
     let capturedOpts = null;
@@ -49,10 +49,11 @@ describe("generateEmail worker", () => {
     });
 
     await runGenerateEmailJob({ data: { leadId: lead.id } });
-    expect(capturedOpts).toHaveProperty("brandDoc", "NST brand content");
+    expect(capturedOpts).toHaveProperty("brandFields");
+    expect(capturedOpts.brandFields).toMatchObject({ tone: "Professional", proofPoints: "3x pipeline for Acme" });
   });
 
-  test("passes null brandDoc to generateDraft when no brand doc exists", async () => {
+  test("passes null brandFields to generateDraft when no brand doc exists", async () => {
     const { user } = await createUser({ email: `noBd${Date.now()}@x.com` });
     let capturedOpts = null;
     __setGenerateDraft(jest.fn().mockImplementation(async (_lead, _profile, opts) => {
@@ -66,7 +67,7 @@ describe("generateEmail worker", () => {
       data: { firstName: "A", lastName: "B", email: "a@b.com", campaignId: campaign.id }
     });
     await runGenerateEmailJob({ data: { leadId: lead.id } });
-    expect(capturedOpts).toHaveProperty("brandDoc", null);
+    expect(capturedOpts).toHaveProperty("brandFields", null);
   });
 
   test("sets campaign to AWAITING_EMAIL_APPROVAL when last lead gets its email (autoDispatch)", async () => {

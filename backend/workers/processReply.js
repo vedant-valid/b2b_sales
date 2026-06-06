@@ -58,7 +58,8 @@ export async function runProcessReplyJob(job) {
     if (existing.body || !body) { logger.info(`process-reply: duplicate skipped for lead ${lead.id}`); return; }
     // Existing reply has empty body but we now have content — backfill it
     const sentiment = await replyHandler.classifySentiment(body);
-    const follow = await replyHandler.draftFollowUp(body, lead, sentiment);
+    const brandFields = await prisma.brandDoc.findUnique({ where: { id: "singleton" } });
+    const follow = await replyHandler.draftFollowUp(body, lead, sentiment, { brandFields });
     await prisma.reply.update({
       where: { id: existing.id },
       data: { body, sentiment, draftFollowUp: follow }
@@ -69,7 +70,8 @@ export async function runProcessReplyJob(job) {
   }
 
   const sentiment = await replyHandler.classifySentiment(body);
-  const follow = await replyHandler.draftFollowUp(body, lead, sentiment);
+  const brandFields = await prisma.brandDoc.findUnique({ where: { id: "singleton" } });
+  const follow = await replyHandler.draftFollowUp(body, lead, sentiment, { brandFields });
 
   await prisma.reply.create({
     data: {
