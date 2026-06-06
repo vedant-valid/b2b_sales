@@ -13,7 +13,7 @@ router.use(requireAuth);
 router.get("/", async (req, res, next) => {
   try {
     const { sentiment, campaignId } = req.query;
-    const where = {};
+    const where = { approvedAt: null };
     if (sentiment) where.sentiment = sentiment;
     if (campaignId) where.lead = { campaignId };
     const replies = await prisma.reply.findMany({
@@ -54,7 +54,7 @@ router.post("/:id/approve", requireRole("ADMIN", "MANAGER"), async (req, res, ne
     });
     if (!reply) return res.status(404).json({ error: "not_found" });
 
-    const instantlyCampaignId = reply.lead.campaign?.instantlyCampaignId;
+    const { instantlyCampaignId } = reply.lead.campaign;
     if (!instantlyCampaignId) return res.status(409).json({ error: "campaign_not_dispatched" });
 
     const { body } = req.body || {};
@@ -62,6 +62,11 @@ router.post("/:id/approve", requireRole("ADMIN", "MANAGER"), async (req, res, ne
     if (!outgoing) return res.status(400).json({ error: "missing_body" });
 
     await instantly.sendSubsequence(instantlyCampaignId, reply.lead.email, outgoing);
+
+    await prisma.reply.update({
+      where: { id: reply.id },
+      data: { approvedAt: new Date() }
+    });
 
     res.json({ ok: true });
   } catch (e) { next(e); }

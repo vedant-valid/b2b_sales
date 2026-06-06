@@ -38,9 +38,15 @@ export async function runGenerateEmailJob(job) {
   } else if (campaign?.emailMode === "TEMPLATE" && campaign.emailTemplateSubject && campaign.emailTemplateBody) {
     draft = await renderTemplate(campaign.emailTemplateSubject, campaign.emailTemplateBody, lead);
   } else {
-    const brandDoc = await prisma.brandDoc.findUnique({ where: { id: "singleton" } });
-    draft = await generateDraft(lead, DEFAULT_PROFILE, { brandDoc: brandDoc?.content ?? null });
+    const brandFields = await prisma.brandDoc.findUnique({ where: { id: "singleton" } });
+    draft = await generateDraft(lead, DEFAULT_PROFILE, { brandFields });
   }
+  const sentEmail = await prisma.email.findFirst({ where: { leadId, status: "SENT" } });
+  if (sentEmail) {
+    logger.info(`lead ${leadId} already has SENT email v${sentEmail.version}, skipping generation`);
+    return { emailId: sentEmail.id, version: sentEmail.version, skipped: true };
+  }
+
   const latest = await prisma.email.findFirst({ where: { leadId }, orderBy: { version: "desc" } });
   const version = latest ? latest.version + 1 : 1;
 
@@ -59,11 +65,12 @@ export async function runGenerateEmailJob(job) {
       }
     });
     if (pendingLeads === 0) {
-      if (campaign?.mode === "TEST") {
-        // TEST campaigns skip email approval — dispatch immediately
+      const freshCampaign = await prisma.campaign.findUnique({ where: { id: lead.campaignId } });
+      if (freshCampaign?.instantlyCampaignId) {
+        // Already dispatched — re-dispatch to push newly generated emails to Instantly
         const boss = await getBoss();
         await boss.send("dispatch-to-instantly", { campaignId: lead.campaignId });
-        logger.info(`TEST campaign ${lead.campaignId} dispatching immediately`);
+        logger.info(`campaign ${lead.campaignId} re-dispatching to push new email drafts`);
       } else {
         await prisma.campaign.update({
           where: { id: lead.campaignId },

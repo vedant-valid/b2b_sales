@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
@@ -14,12 +14,35 @@ export default function CampaignWizard() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [clarification, setClarification] = useState("");
+  const [senderEmail, setSenderEmail] = useState("");
+  const [senders, setSenders] = useState([]);
+  const [sendersLoading, setSendersLoading] = useState(false);
+
+  useEffect(() => {
+    if (!session?.backendToken) return;
+    setSendersLoading(true);
+    apiFetch("/api/sender-accounts/mine", { token: session.backendToken })
+      .then(({ senders }) => { setSenders(senders); if (senders.length === 1) setSenderEmail(senders[0].email); })
+      .catch(() => {})
+      .finally(() => setSendersLoading(false));
+  }, [session?.backendToken]);
 
   async function onSubmit(e) {
     e.preventDefault();
     setLoading(true); setError(""); setClarification("");
     try {
+      if (mode === "OUTREACH" && senders.length === 0) {
+        setError("No sending account assigned. Ask your admin to assign one from Settings → Senders.");
+        setLoading(false);
+        return;
+      }
+      if (mode === "OUTREACH" && senders.length > 1 && !senderEmail) {
+        setError("Please select a sending account.");
+        setLoading(false);
+        return;
+      }
       const body = { name, rawGoal, mode };
+      if (senderEmail) body.senderEmail = senderEmail;
       if (mode === "TEST") {
         const testEmails = testEmailsRaw
           .split(/[\n,]+/)
@@ -40,7 +63,8 @@ export default function CampaignWizard() {
       router.push(`/campaigns/${campaign.id}`);
     } catch (e) {
       if (e.status === 422) setClarification(e.data?.clarification || "Please refine your goal.");
-      else setError(e.message);
+      else if (e.status === 429 || e.status === 503) setError(e.data?.message || "AI service unavailable — please try again in a moment.");
+      else setError(e.data?.message || e.message);
     } finally { setLoading(false); }
   }
 
@@ -119,6 +143,31 @@ export default function CampaignWizard() {
         </div>
       )}
 
+      {/* Sender selection */}
+      {!sendersLoading && senders.length === 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded p-3 text-sm text-amber-800">
+          No sending account assigned to you. Ask your admin to assign one from Settings → Senders.
+        </div>
+      )}
+      {senders.length > 1 && (
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Send from</label>
+          <select
+            value={senderEmail}
+            onChange={(e) => setSenderEmail(e.target.value)}
+            className="border p-2 rounded w-full text-sm"
+            required
+          >
+            <option value="">Select a sending account…</option>
+            {senders.map(s => (
+              <option key={s.email} value={s.email}>{s.email}</option>
+            ))}
+          </select>
+        </div>
+      )}
+      {senders.length === 1 && (
+        <p className="text-xs text-gray-500">Sending from: <span className="font-mono">{senders[0].email}</span></p>
+      )}
       {clarification && <p className="text-amber-700 text-sm">{clarification}</p>}
       {error && <p className="text-red-600 text-sm">{error}</p>}
       <button disabled={loading} className="bg-black text-white px-4 py-2 rounded">

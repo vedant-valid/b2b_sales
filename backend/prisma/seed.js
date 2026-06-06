@@ -4,17 +4,17 @@ import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
-const SEED_PASSWORD = process.env.SEED_PASSWORD || "Admin1234!";
+const DEFAULT_PASSWORD = process.env.SEED_PASSWORD || "Admin1234!";
 
 const users = [
-  { email: "vedantmadne555@gmail.com", name: "Vedant Madne", role: "ADMIN" },
-  { email: "manager@reachout.dev",      name: "Manager Demo",  role: "MANAGER" },
+  { email: "vedantmadne555@gmail.com", name: "Vedant Madne",   role: "ADMIN" },
+  { email: "manager@reachout.dev",     name: "Manager Demo",   role: "MANAGER" },
+  { email: "vedant.madne66@gmail.com", name: "Vedant (Multi)", role: "MANAGER", password: "manager1234!" },
 ];
 
 async function main() {
-  const hash = await bcrypt.hash(SEED_PASSWORD, 10);
-
   for (const u of users) {
+    const hash = await bcrypt.hash(u.password || DEFAULT_PASSWORD, 10);
     const user = await prisma.user.upsert({
       where:  { email: u.email },
       update: {},          // don't overwrite if exists
@@ -23,7 +23,7 @@ async function main() {
     console.log(`[seed] ${user.role} ${user.email}  (id: ${user.id})`);
   }
 
-  console.log(`\n[seed] done — password for all seeded users: ${SEED_PASSWORD}`);
+  console.log(`\n[seed] done`);
 }
 
 main()

@@ -20,14 +20,28 @@ describe("replyHandler", () => {
     expect(out).toMatch(/times/);
   });
 
-  test("includes brand doc in follow-up prompt when provided", async () => {
+  test("includes formatted brand guidelines in follow-up prompt when brandFields provided", async () => {
     let capturedPrompt = null;
     const fakeGen = jest.fn().mockImplementation(async (prompt) => {
       capturedPrompt = prompt;
       return { followUp: "Got it, talk soon." };
     });
     const lead = { firstName: "Alice" };
-    await draftFollowUp("Thanks!", lead, "INTERESTED", { generate: fakeGen, brandDoc: "Never use em-dashes." });
-    expect(capturedPrompt).toContain("Never use em-dashes.");
+    await draftFollowUp("Thanks!", lead, "INTERESTED", {
+      generate: fakeGen,
+      brandFields: { tone: "Warm and direct", bannedWords: "em-dashes" }
+    });
+    expect(capturedPrompt).toContain("Warm and direct");
+    expect(capturedPrompt).toContain("em-dashes");
+  });
+
+  test("no brand context in prompt when brandFields is null", async () => {
+    let capturedPrompt = null;
+    const fakeGen = jest.fn().mockImplementation(async (prompt) => {
+      capturedPrompt = prompt;
+      return { followUp: "Talk soon." };
+    });
+    await draftFollowUp("Thanks!", { firstName: "Bob" }, "NEUTRAL", { generate: fakeGen, brandFields: null });
+    expect(capturedPrompt).not.toContain("BRAND GUIDELINES");
   });
 });

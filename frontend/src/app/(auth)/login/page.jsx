@@ -7,6 +7,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [demoLoading, setDemoLoading] = useState(false);
   const router = useRouter();
 
   async function onSubmit(e) {
@@ -15,6 +16,22 @@ export default function LoginPage() {
     const res = await signIn("credentials", { email, password, redirect: false });
     if (res?.error) setError("Invalid credentials");
     else router.push("/dashboard");
+  }
+
+  async function signInAsDemo() {
+    setDemoLoading(true);
+    setError("");
+    const res = await signIn("credentials", {
+      email: "manager@reachout.dev",
+      password: "Admin1234!",
+      redirect: false,
+    });
+    if (res?.error) {
+      setError("Demo account unavailable");
+      setDemoLoading(false);
+    } else {
+      router.push("/dashboard");
+    }
   }
 
   return (
@@ -26,7 +43,17 @@ export default function LoginPage() {
         <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)}
           className="w-full border p-2 rounded" required />
         {error && <p className="text-red-600 text-sm">{error}</p>}
-        <button className="w-full bg-black text-white p-2 rounded">Sign in</button>
+        <div className="flex gap-2">
+          <button className="flex-1 bg-black text-white p-2 rounded">Sign in</button>
+          <button
+            type="button"
+            onClick={signInAsDemo}
+            disabled={demoLoading}
+            className="flex-1 border border-black text-black p-2 rounded hover:bg-gray-50 disabled:opacity-50"
+          >
+            {demoLoading ? "Signing in…" : "Try as Manager"}
+          </button>
+        </div>
       </form>
     </main>
   );

@@ -161,7 +161,9 @@ export default function CampaignDetailPage({ params }) {
     } catch (e) {
       const msg = e.data?.error === "insufficient_credits"
         ? `Not enough credits — need ${e.data.required}, have ${e.data.available}`
-        : e.message;
+        : e.data?.error === "lusha_enrich_failed"
+          ? `Lusha enrichment failed: ${e.data.message}`
+          : e.message;
       setUnlockError(msg);
     } finally { setUnlocking(false); }
   }
@@ -174,6 +176,18 @@ export default function CampaignDetailPage({ params }) {
         token: session.backendToken, method: "POST"
       });
       if (updated > 0) loadLeads();
+    } catch (e) { setError(e.message); }
+    finally { setActing(false); }
+  }
+
+  async function onRetryEmails() {
+    setActing(true);
+    setError("");
+    try {
+      const { queued } = await apiFetch(`/api/campaigns/${id}/retry-emails`, {
+        token: session.backendToken, method: "POST"
+      });
+      if (queued > 0) loadCampaign();
     } catch (e) { setError(e.message); }
     finally { setActing(false); }
   }
@@ -355,6 +369,15 @@ export default function CampaignDetailPage({ params }) {
                   className="text-xs border border-gray-400 text-gray-700 bg-white px-2 py-1 rounded disabled:opacity-50"
                 >
                   Sync Status
+                </button>
+              )}
+              {campaign.status === "RUNNING" && !isViewer && leads.some(l => l.email && l._count?.emails === 0) && (
+                <button
+                  onClick={onRetryEmails}
+                  disabled={acting}
+                  className="text-xs border border-amber-500 text-amber-700 bg-amber-50 px-2 py-1 rounded disabled:opacity-50"
+                >
+                  Retry failed emails ({leads.filter(l => l.email && l._count?.emails === 0).length})
                 </button>
               )}
               {DEV_MODE && !isViewer && (

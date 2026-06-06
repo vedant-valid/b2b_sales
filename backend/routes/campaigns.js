@@ -5,6 +5,7 @@ import { requireAuth } from "../middleware/auth.js";
 import { requireRole } from "../middleware/rbac.js";
 import { extractFilters as realExtractFilters } from "../services/prompt.js";
 import { enrichLeads as realEnrichLeads } from "../services/lusha.js";
+import { generateTemplateEmail as realGenerateTemplateEmail } from "../services/emailGen.js";
 import { generateText } from "../services/gemini.js";
 import { getCampaignAnalytics } from "../services/instantly.js";
 import { getBoss } from "../lib/pgboss.js";
@@ -28,6 +29,9 @@ export function __setExtractFilters(fn) { extract = fn; }
 let enrich = realEnrichLeads;
 export function __setEnrichLeadsImpl(fn) { enrich = fn; }
 
+let generateTemplateEmailImpl = realGenerateTemplateEmail;
+export function __setGenerateTemplateEmailImpl(fn) { generateTemplateEmailImpl = fn; }
+
 const router = Router();
 router.use(requireAuth);
 
@@ -35,7 +39,8 @@ const createSchema = z.object({
   name: z.string().min(1),
   rawGoal: z.string().min(5),
   mode: z.enum(["OUTREACH", "TEST"]).default("OUTREACH"),
-  testEmails: z.array(z.string().email()).optional()
+  testEmails: z.array(z.string().email()).optional(),
+  senderEmail: z.string().email().optional(),
 });
 
 function parseNameFromEmail(email) {
@@ -73,12 +78,19 @@ router.post("/", requireRole("ADMIN", "MANAGER"), async (req, res, next) => {
   try {
     const parsed = createSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: "invalid_input" });
-    const { name, rawGoal, mode, testEmails } = parsed.data;
+    const { name, rawGoal, mode, testEmails, senderEmail } = parsed.data;
+
+    if (senderEmail) {
+      const assignment = await prisma.userSenderAccount.findUnique({
+        where: { userId_senderEmail: { userId: req.user.sub, senderEmail } }
+      });
+      if (!assignment) return res.status(403).json({ error: "sender_not_assigned" });
+    }
 
     // TEST campaigns skip Gemini entirely — no Lusha filters needed
     if (mode === "TEST") {
       const campaign = await prisma.campaign.create({
-        data: { name, rawGoal, extractedFilters: null, mode, createdById: req.user.sub }
+        data: { name, rawGoal, extractedFilters: null, mode, senderEmail, createdById: req.user.sub }
       });
       if (testEmails?.length) {
         const title = extractTitleFromGoal(rawGoal) || "Staff";
@@ -101,13 +113,13 @@ router.post("/", requireRole("ADMIN", "MANAGER"), async (req, res, next) => {
     }
 
     // OUTREACH — unchanged
-    const brandDoc = await prisma.brandDoc.findUnique({ where: { id: "singleton" } });
-    const extraction = await extract(rawGoal, { brandDoc: brandDoc?.content ?? null });
+    const brandFields = await prisma.brandDoc.findUnique({ where: { id: "singleton" } });
+    const extraction = await extract(rawGoal, { brandFields });
     if (extraction.needsClarification) {
       return res.status(422).json({ error: "needs_clarification", clarification: extraction.clarification });
     }
     const campaign = await prisma.campaign.create({
-      data: { name, rawGoal, extractedFilters: extraction.filters, mode, createdById: req.user.sub }
+      data: { name, rawGoal, extractedFilters: extraction.filters, mode, senderEmail, createdById: req.user.sub }
     });
     res.status(201).json({ campaign });
   } catch (e) { next(e); }
@@ -259,6 +271,28 @@ router.post("/:id/approve-emails", requireRole("ADMIN", "MANAGER"), async (req, 
     await boss.send("dispatch-to-instantly", { campaignId: campaign.id });
     await prisma.campaign.update({ where: { id: campaign.id }, data: { status: "RUNNING" } });
     res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+// Re-queue email generation for leads that have an email address but no draft yet.
+// Safe to call on a RUNNING campaign — dispatch-to-instantly will re-run automatically
+// once all missing drafts are generated, pushing the new leads to the existing Instantly campaign.
+router.post("/:id/retry-emails", requireRole("ADMIN", "MANAGER"), async (req, res, next) => {
+  try {
+    const campaign = await prisma.campaign.findUnique({ where: { id: req.params.id } });
+    if (!campaign) return res.status(404).json({ error: "not_found" });
+    if (!campaign.instantlyCampaignId) return res.status(409).json({ error: "not_dispatched_yet" });
+
+    const leads = await prisma.lead.findMany({
+      where: { campaignId: campaign.id, isEnriched: true, email: { not: null }, emails: { none: {} } }
+    });
+    if (leads.length === 0) return res.json({ queued: 0 });
+
+    const boss = await getBoss();
+    for (const lead of leads) {
+      await boss.send("generate-email", { leadId: lead.id, autoDispatch: true });
+    }
+    res.json({ queued: leads.length });
   } catch (e) { next(e); }
 });
 
@@ -494,7 +528,8 @@ router.post("/:id/unlock-leads", requireRole("ADMIN", "MANAGER"), async (req, re
       try {
         enrichedData = await enrich(requestId, contactIds);
       } catch (err) {
-        return next(err);
+        logger.error(`unlock-leads: Lusha enrich failed for campaign ${campaign.id}: ${err.message}`);
+        return res.status(502).json({ error: "lusha_enrich_failed", message: err.message });
       }
 
       const enrichedMap = new Map(enrichedData.map(e => [e.lushaContactId, e]));
@@ -580,6 +615,16 @@ const templateSchema = z.discriminatedUnion("emailMode", [
     body: z.string().min(1)
   })
 ]);
+
+router.post("/:id/template/generate", requireRole("ADMIN", "MANAGER"), async (req, res, next) => {
+  try {
+    const campaign = await prisma.campaign.findUnique({ where: { id: req.params.id } });
+    if (!campaign) return res.status(404).json({ error: "not_found" });
+    const brandFields = await prisma.brandDoc.findUnique({ where: { id: "singleton" } });
+    const draft = await generateTemplateEmailImpl(campaign.rawGoal, brandFields);
+    res.json(draft);
+  } catch (e) { next(e); }
+});
 
 router.get("/:id/template", async (req, res, next) => {
   try {

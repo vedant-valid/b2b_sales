@@ -1,4 +1,5 @@
 import { generateJson } from "./gemini.js";
+import { formatBrandGuidelines } from "./brandDoc.js";
 
 const VALID = ["INTERESTED", "NOT_INTERESTED", "NEUTRAL", "CONVERTIBLE"];
 
@@ -17,7 +18,7 @@ export async function classifySentiment(replyBody, { generate = generateJson } =
   return VALID.includes(out.sentiment) ? out.sentiment : "NEUTRAL";
 }
 
-const FOLLOWUP_PROMPT = `Draft a brief, warm follow-up email. 60 words or less. Plain text. No em-dashes. No placeholders like [Your Name] — sign off with the sender name provided. When proposing meeting times, use IST (Indian Standard Time) and do not mention any other timezone.
+const FOLLOWUP_PROMPT = `Draft a brief, warm follow-up email. 60 words or less. Plain text. No em-dashes. No placeholders whatsoever — use the actual names provided. Sign off with the sender name. When proposing meeting times, use IST (Indian Standard Time) and do not mention any other timezone.
 
 Sentiment context guides tone:
 - INTERESTED → propose 2 concrete meeting times in IST
@@ -27,11 +28,13 @@ Sentiment context guides tone:
 
 Return JSON: { "followUp": string }`;
 
-export async function draftFollowUp(replyBody, lead, sentiment, { generate = generateJson, brandDoc = null, senderName = "Vedant" } = {}) {
-  const brandContext = brandDoc ? `\n\nBrand voice guidelines:\n${brandDoc}` : "";
+export async function draftFollowUp(replyBody, lead, sentiment, { generate = generateJson, brandFields = null, senderName = "Vedant" } = {}) {
+  const brandText = formatBrandGuidelines(brandFields);
+  const brandContext = brandText ? `\n\nBrand voice guidelines:\n${brandText}` : "";
   const prompt = `${FOLLOWUP_PROMPT}${brandContext}
 
-Sender name (use this to sign off): ${senderName}
+Lead name: ${lead.firstName} ${lead.lastName || ""}
+Sender name: ${senderName}
 
 Reply from ${lead.firstName}:
 ${replyBody}

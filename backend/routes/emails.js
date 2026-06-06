@@ -49,6 +49,13 @@ router.post("/emails/:id/send", requireRole("ADMIN", "MANAGER"), async (req, res
     if (!email) return res.status(404).json({ error: "not_found" });
     if (!email.lead.email) return res.status(400).json({ error: "lead_has_no_email" });
 
+    const alreadySent = await prisma.email.findFirst({
+      where: { leadId: email.leadId, status: "SENT", id: { not: email.id } }
+    });
+    if (alreadySent) {
+      return res.status(409).json({ error: "already_sent", detail: "This lead already has a sent email." });
+    }
+
     if (instantly) {
       const campaign = await prisma.campaign.findUnique({ where: { id: email.lead.campaignId } });
       if (!campaign) return res.status(400).json({ error: "campaign_not_found" });

@@ -9,6 +9,7 @@ export default function ReplyCard({ reply, onApproved }) {
   const [body, setBody] = useState(reply.draftFollowUp || "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [sent, setSent] = useState(false);
 
   async function approve() {
     setBusy(true); setError("");
@@ -16,8 +17,21 @@ export default function ReplyCard({ reply, onApproved }) {
       await apiFetch(`/api/replies/${reply.id}/approve`, {
         token: session.backendToken, method: "POST", body: { body }
       });
-      onApproved?.(reply.id);
+      setSent(true);
+      setTimeout(() => onApproved?.(reply.id), 2500);
     } catch (e) { setError(e.message); } finally { setBusy(false); }
+  }
+
+  if (sent) {
+    return (
+      <div className="border rounded p-4 flex items-center gap-3 bg-green-50 border-green-200">
+        <div className="text-green-600 text-lg">✓</div>
+        <div>
+          <div className="font-semibold text-sm text-green-800">Follow-up sent to {reply.lead.firstName} {reply.lead.lastName}</div>
+          <div className="text-xs text-green-600">{reply.lead.company}</div>
+        </div>
+      </div>
+    );
   }
 
   return (

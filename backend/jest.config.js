@@ -4,5 +4,6 @@ export default {
   setupFilesAfterEnv: ["<rootDir>/tests/setup.js"],
   transform: {},
   testTimeout: 30000,
-  maxWorkers: 1
+  maxWorkers: 1,
+  forceExit: true
 };

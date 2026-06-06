@@ -7,8 +7,9 @@ export const QUEUE = "process-reply";
 let replyHandler = { classifySentiment: realClassify, draftFollowUp: realDraftFollowUp };
 export function __setReplyHandlerImpl(impl) { replyHandler = impl; }
 
-// Strip the quoted original email that most clients append below the reply.
-// Stops at the first line that looks like a quote header or quote marker.
+// Strip quoted original email content. Stops at quote headers/markers.
+// If the entire body consists of quoted lines (Gmail inline reply style),
+// fall back to stripping the > prefix from each line to recover the actual text.
 function stripEmailQuotes(text) {
   if (!text) return text;
   const lines = text.split("\n");
@@ -22,7 +23,13 @@ function stripEmailQuotes(text) {
     if (/^From:\s/i.test(t)) break;
     result.push(line);
   }
-  return result.join("\n").trim();
+  const stripped = result.join("\n").trim();
+  if (stripped) return stripped;
+  // Entire body was quoted lines — recover content by removing > prefixes
+  return lines
+    .map(l => l.replace(/^>\s?/, ""))
+    .join("\n")
+    .trim();
 }
 
 const SENTIMENT_TO_STATUS = {
@@ -43,14 +50,28 @@ export async function runProcessReplyJob(job) {
 
   const receivedDate = new Date(receivedAt);
 
-  // Idempotency: skip if reply already exists for (leadId, receivedAt)
+  // Idempotency: skip if reply already exists with a body; update if body was empty
   const existing = await prisma.reply.findUnique({
     where: { leadId_receivedAt: { leadId: lead.id, receivedAt: receivedDate } }
   });
-  if (existing) { logger.info(`process-reply: duplicate skipped for lead ${lead.id}`); return; }
+  if (existing) {
+    if (existing.body || !body) { logger.info(`process-reply: duplicate skipped for lead ${lead.id}`); return; }
+    // Existing reply has empty body but we now have content — backfill it
+    const sentiment = await replyHandler.classifySentiment(body);
+    const brandFields = await prisma.brandDoc.findUnique({ where: { id: "singleton" } });
+    const follow = await replyHandler.draftFollowUp(body, lead, sentiment, { brandFields });
+    await prisma.reply.update({
+      where: { id: existing.id },
+      data: { body, sentiment, draftFollowUp: follow }
+    });
+    await prisma.lead.update({ where: { id: lead.id }, data: { status: SENTIMENT_TO_STATUS[sentiment] || "REPLIED" } });
+    logger.info(`process-reply: backfilled empty body for reply ${existing.id}`);
+    return;
+  }
 
   const sentiment = await replyHandler.classifySentiment(body);
-  const follow = await replyHandler.draftFollowUp(body, lead, sentiment);
+  const brandFields = await prisma.brandDoc.findUnique({ where: { id: "singleton" } });
+  const follow = await replyHandler.draftFollowUp(body, lead, sentiment, { brandFields });
 
   await prisma.reply.create({
     data: {

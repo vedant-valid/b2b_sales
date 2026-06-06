@@ -24,8 +24,16 @@ async function ensureSeedUsers() {
 const app = createApp();
 const server = app.listen(env.PORT, async () => {
   logger.info(`backend listening on :${env.PORT}`);
-  await ensureSeedUsers();
-  await registerWorkers();
+  try {
+    await ensureSeedUsers();
+  } catch (err) {
+    logger.warn({ err }, "seed: could not reach DB on startup — will retry on first request");
+  }
+  try {
+    await registerWorkers();
+  } catch (err) {
+    logger.warn({ err }, "workers: failed to register — background jobs unavailable");
+  }
 });
 
 process.on("SIGTERM", () => {

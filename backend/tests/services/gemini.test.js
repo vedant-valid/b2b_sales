@@ -1,21 +1,35 @@
 import { jest } from "@jest/globals";
-import { generateJson } from "../../services/gemini.js";
+import { generateJson, __setClientForTest } from "../../services/gemini.js";
 
-describe("gemini.generateJson", () => {
-  test("parses JSON from response text", async () => {
+describe("gemini.generateJson (Groq backend)", () => {
+  afterEach(() => __setClientForTest(null));
+
+  test("parses JSON from fenced response", async () => {
     const fakeClient = {
-      generateContent: jest.fn().mockResolvedValue({
-        response: { text: () => '```json\n{"foo":"bar"}\n```' }
-      })
+      chat: {
+        completions: {
+          create: jest.fn().mockResolvedValue({
+            choices: [{ message: { content: '```json\n{"foo":"bar"}\n```' } }]
+          })
+        }
+      }
     };
-    const result = await generateJson("prompt", { client: fakeClient });
+    __setClientForTest(fakeClient);
+    const result = await generateJson("prompt");
     expect(result).toEqual({ foo: "bar" });
   });
 
   test("throws on invalid JSON", async () => {
     const fakeClient = {
-      generateContent: jest.fn().mockResolvedValue({ response: { text: () => "not json" } })
+      chat: {
+        completions: {
+          create: jest.fn().mockResolvedValue({
+            choices: [{ message: { content: "not json at all" } }]
+          })
+        }
+      }
     };
-    await expect(generateJson("prompt", { client: fakeClient })).rejects.toThrow();
+    __setClientForTest(fakeClient);
+    await expect(generateJson("prompt")).rejects.toThrow();
   });
 });

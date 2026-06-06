@@ -52,7 +52,11 @@ describe("instantly service", () => {
   });
 
   test("sendSubsequence calls subsequence endpoint", async () => {
-    const fetch = makeFetch([{ status: 200, body: { ok: true } }]);
+    const fetch = makeFetch([
+      { status: 200, body: { id: "sub_123" } },                       // createFollowUpSubsequence
+      { status: 200, body: { items: [{ id: "lead_456" }] } },         // lookupInstantlyLeadId
+      { status: 200, body: { ok: true } },                            // moveLeadToSubsequence
+    ]);
     await expect(sendSubsequence("cmp_123", "lead@x.com", "follow-up body", { fetch })).resolves.not.toThrow();
     expect(fetch.calls[0].url).toMatch(/subsequences/);
   });

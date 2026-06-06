@@ -1,7 +1,7 @@
 import request from "supertest";
 import { jest } from "@jest/globals";
 import { createApp } from "../../app.js";
-import { __setExtractFilters, __setEnrichLeadsImpl } from "../../routes/campaigns.js";
+import { __setExtractFilters, __setEnrichLeadsImpl, __setGenerateTemplateEmailImpl } from "../../routes/campaigns.js";
 import { prisma } from "../../lib/prisma.js";
 import { createUser, authHeader } from "../helpers/factory.js";
 import { resetDb } from "../setup.js";
@@ -16,6 +16,7 @@ beforeEach(async () => {
     confidence: 0.9,
     needsClarification: false
   }));
+  __setGenerateTemplateEmailImpl(() => { throw new Error("generateTemplateEmailImpl not mocked in this test"); });
 });
 
 afterAll(async () => { await stopBoss(); });
@@ -54,10 +55,10 @@ describe("campaigns routes", () => {
     expect(res.body.clarification).toMatch(/target role/);
   });
 
-  test("passes brand doc content to extractFilters when set", async () => {
+  test("passes brand doc structured fields to extractFilters when set", async () => {
     const { token } = await createUser({ email: `admin${Date.now()}@x.com`, role: "ADMIN" });
     await prisma.brandDoc.create({
-      data: { id: "singleton", content: "ICP: Founders at seed-stage startups" }
+      data: { id: "singleton", tone: "Direct", targetPersonas: "Founders at seed-stage startups" }
     });
 
     let capturedOpts = null;
@@ -71,10 +72,12 @@ describe("campaigns routes", () => {
       .set(authHeader(token))
       .send({ name: "Test", rawGoal: "find engineers in India" });
 
-    expect(capturedOpts).toHaveProperty("brandDoc", "ICP: Founders at seed-stage startups");
+    expect(capturedOpts).toHaveProperty("brandFields");
+    expect(capturedOpts.brandFields).not.toBeNull();
+    expect(capturedOpts.brandFields.tone).toBe("Direct");
   });
 
-  test("passes null brandDoc to extractFilters when no brand doc set", async () => {
+  test("passes null brandFields to extractFilters when no brand doc set", async () => {
     const { token } = await createUser({ email: `noBd${Date.now()}@x.com`, role: "ADMIN" });
     let capturedOpts = null;
     __setExtractFilters(async (_goal, opts) => {
@@ -85,7 +88,7 @@ describe("campaigns routes", () => {
       .post("/api/campaigns")
       .set(authHeader(token))
       .send({ name: "NullTest", rawGoal: "find engineers in India" });
-    expect(capturedOpts).toHaveProperty("brandDoc", null);
+    expect(capturedOpts).toHaveProperty("brandFields", null);
   });
 
   test("GET /api/campaigns lists user-visible campaigns", async () => {
@@ -106,6 +109,42 @@ describe("campaigns routes", () => {
     const res = await request(app).get(`/api/campaigns/${c.id}`).set(authHeader(token));
     expect(res.status).toBe(200);
     expect(res.body.campaign.id).toBe(c.id);
+  });
+
+  test("POST /api/campaigns stores senderEmail when provided", async () => {
+    const { token, user } = await createUser({ role: "MANAGER", email: "mgr_sender@x.com" });
+
+    // Create a sender account and assign it to this user
+    await prisma.senderAccount.create({
+      data: { accountId: "acc_s1", email: "alice@nstx.co.in", status: "active" }
+    });
+    await prisma.userSenderAccount.create({
+      data: { userId: user.id, senderEmail: "alice@nstx.co.in" }
+    });
+
+    const res = await request(app)
+      .post("/api/campaigns")
+      .set(authHeader(token))
+      .send({ name: "Sender Test", rawGoal: "Engineers at startups", senderEmail: "alice@nstx.co.in" });
+
+    expect(res.status).toBe(201);
+    expect(res.body.campaign.senderEmail).toBe("alice@nstx.co.in");
+  });
+
+  test("POST /api/campaigns rejects senderEmail not assigned to user", async () => {
+    const { token } = await createUser({ role: "MANAGER", email: "mgr_nosender@x.com" });
+
+    await prisma.senderAccount.create({
+      data: { accountId: "acc_s2", email: "other@nstx.co.in", status: "active" }
+    });
+    // Note: NOT assigned to this user
+
+    const res = await request(app)
+      .post("/api/campaigns")
+      .set(authHeader(token))
+      .send({ name: "Sender Test 2", rawGoal: "Engineers at startups", senderEmail: "other@nstx.co.in" });
+
+    expect(res.status).toBe(403);
   });
 });
 
@@ -515,6 +554,42 @@ describe("template routes", () => {
         .get("/api/campaigns/nonexistent-id/template")
         .set(authHeader(token));
       expect(res.status).toBe(404);
+    });
+
+    test("POST /:id/template/generate returns subject and body", async () => {
+      const { token } = await createUser({ email: `tgen1${Date.now()}@x.com`, role: "MANAGER" });
+      const id = await makeCampaign(token);
+      __setGenerateTemplateEmailImpl(jest.fn().mockResolvedValue({
+        subject: "Scale hiring at {{company}}",
+        body: "Hi {{firstName}}, I saw you're {{title}} at {{company}}..."
+      }));
+      const res = await request(app)
+        .post(`/api/campaigns/${id}/template/generate`)
+        .set(authHeader(token));
+      expect(res.status).toBe(200);
+      expect(res.body).toMatchObject({
+        subject: "Scale hiring at {{company}}",
+        body: expect.stringContaining("{{firstName}}")
+      });
+    });
+
+    test("POST /:id/template/generate returns 404 for unknown campaign", async () => {
+      const { token } = await createUser({ email: `tgen2${Date.now()}@x.com`, role: "MANAGER" });
+      __setGenerateTemplateEmailImpl(jest.fn().mockResolvedValue({ subject: "S", body: "B" }));
+      const res = await request(app)
+        .post("/api/campaigns/nonexistent-id/template/generate")
+        .set(authHeader(token));
+      expect(res.status).toBe(404);
+    });
+
+    test("POST /:id/template/generate returns 403 for VIEWER", async () => {
+      const { token: managerToken } = await createUser({ email: `tgen3m${Date.now()}@x.com`, role: "MANAGER" });
+      const { token: viewerToken } = await createUser({ email: `tgen3v${Date.now()}@x.com`, role: "VIEWER" });
+      const id = await makeCampaign(managerToken);
+      const res = await request(app)
+        .post(`/api/campaigns/${id}/template/generate`)
+        .set(authHeader(viewerToken));
+      expect(res.status).toBe(403);
     });
   });
 

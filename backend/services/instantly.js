@@ -27,10 +27,10 @@ async function req(path, method, body, { fetch: fetchFn = globalThis.fetch } = {
 }
 
 export async function createCampaign(name, opts = {}) {
-  const { mode, fetch: fetchFn, ...restOpts } = opts;
-  const sendingAccounts = env.INSTANTLY_SENDING_ACCOUNTS
-    ? env.INSTANTLY_SENDING_ACCOUNTS.split(",").map(s => s.trim()).filter(Boolean)
-    : undefined;
+  const { mode, senderEmails, fetch: fetchFn } = opts;
+  const sendingAccounts = senderEmails?.length
+    ? senderEmails
+    : env.INSTANTLY_SENDING_ACCOUNTS?.split(",").map(s => s.trim()).filter(Boolean);
 
   // TEST campaigns use a 24/7 schedule so demo emails go out immediately
   const schedule = mode === "TEST"
@@ -100,15 +100,9 @@ export async function lookupInstantlyLeadId(instantlyCampaignId, email, opts = {
 }
 
 export async function sendSubsequence(instantlyCampaignId, email, body, opts = {}) {
-  const schedule = { name: "Default", timing: { from: "00:00", to: "23:59" }, days: { 0: true, 1: true, 2: true, 3: true, 4: true, 5: true, 6: true }, timezone: "Asia/Kolkata" };
-  await req("/api/v2/subsequences", "POST", {
-    parent_campaign: instantlyCampaignId,
-    lead_email: email,
-    name: `Follow-up ${new Date().toISOString()}`,
-    conditions: { crm_status: [], lead_activity: [], reply_contains: "" },
-    subsequence_schedule: { start_date: null, end_date: null, schedules: [schedule] },
-    sequences: [{ steps: [{ type: "email", delay: 0, delay_unit: "minutes", pre_delay: 0, pre_delay_unit: "minutes", variants: [{ subject: "Re:", body }] }] }]
-  }, opts);
+  const subsequenceId = await createFollowUpSubsequence(instantlyCampaignId, "Re:", body, opts);
+  const leadId = await lookupInstantlyLeadId(instantlyCampaignId, email, opts);
+  await moveLeadToSubsequence(leadId, subsequenceId, opts);
 }
 
 export async function createFollowUpSubsequence(instantlyCampaignId, subject, body, opts = {}) {
@@ -146,4 +140,14 @@ export async function getRecentReplies(instantlyCampaignId, sinceDate, opts = {}
   });
   const data = await req(`/api/v2/emails?${params}`, "GET", null, opts);
   return data?.items ?? [];
+}
+
+export async function listSendingAccounts(opts = {}) {
+  const { fetch: fetchFn } = opts;
+  const data = await req("/api/v2/accounts", "GET", null, { fetch: fetchFn });
+  return (data.items || []).map(a => ({
+    accountId: a.email,
+    email: a.email,
+    status: a.status === 1 ? "active" : a.status === -1 ? "inactive" : String(a.status ?? "unknown")
+  }));
 }
