@@ -54,4 +54,18 @@ describe("leads routes", () => {
       .send({ status: "INTERESTED" });
     expect(res.status).toBe(403);
   });
+
+  test("GET /api/leads?hasSentEmail=true only returns leads with a SENT email", async () => {
+    const { token } = await createUser({ role: "VIEWER", email: `v4${Date.now()}${Math.random()}@x.com` });
+    const leadWithEmail = await seedLead();
+    const leadWithout = await seedLead();
+    await prisma.email.create({
+      data: { leadId: leadWithEmail.id, subject: "Hi", body: "Hello", status: "SENT", sentAt: new Date() }
+    });
+    const res = await request(app).get("/api/leads?hasSentEmail=true").set(authHeader(token));
+    expect(res.status).toBe(200);
+    const ids = res.body.leads.map(l => l.id);
+    expect(ids).toContain(leadWithEmail.id);
+    expect(ids).not.toContain(leadWithout.id);
+  });
 });

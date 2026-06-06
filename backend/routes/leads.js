@@ -9,10 +9,11 @@ router.use(requireAuth);
 
 router.get("/", async (req, res, next) => {
   try {
-    const { campaignId, status } = req.query;
+    const { campaignId, status, hasSentEmail } = req.query;
     const where = {};
     if (campaignId) where.campaignId = campaignId;
     if (status) where.status = status;
+    if (hasSentEmail === "true") where.emails = { some: { status: "SENT" } };
     const leads = await prisma.lead.findMany({
       where,
       include: {
