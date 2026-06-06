@@ -71,3 +71,48 @@ Campaign goal: ${rawGoal}
 JSON:`;
   return generate(prompt, opts);
 }
+
+const SEQUENCE_SYSTEM = `You are a world-class outbound copywriter. Create a cold B2B email sequence.
+
+Return ONLY a JSON array of 2-4 steps, no preamble or wrapper object:
+[
+  { "stepNumber": 1, "delayDays": 0, "subject": "...", "body": "..." },
+  { "stepNumber": 2, "delayDays": 3, "subject": "...", "body": "..." }
+]
+
+Rules:
+- 2-4 steps total
+- Step 1: delayDays MUST be 0 (sent immediately)
+- Subsequent steps: delayDays = days after previous step (3-7 typical)
+- Subject ≤ 60 chars
+- Body ≤ 150 words each
+- Plain text only — no markdown, no em-dashes
+- Placeholders: {{firstName}}, {{company}}, {{title}}, {{aiPersonalization}}
+- Step 1 = warm intro; step 2 = gentle follow-up; final step = brief close`;
+
+export async function generateSequence(rawGoal, brandFields = null, { generate = generateJson } = {}) {
+  const brandText = formatBrandGuidelines(brandFields);
+  const opts = brandText ? { systemInstruction: brandText } : {};
+  const brandSection = brandText ? `\n\n${brandText}` : "";
+  const prompt = `${SEQUENCE_SYSTEM}\n\nCampaign goal: ${rawGoal}${brandSection}\n\nJSON array:`;
+  return generate(prompt, opts);
+}
+
+const REVISE_SYSTEM = `You are a world-class outbound copywriter. Revise an email sequence based on user feedback.
+
+Return ONLY the full revised sequence as a JSON array in the same format. Keep unchanged steps exactly as-is.`;
+
+export async function reviseSequence(currentSteps, userPrompt, brandFields = null, { generate = generateJson } = {}) {
+  const brandText = formatBrandGuidelines(brandFields);
+  const opts = brandText ? { systemInstruction: brandText } : {};
+  const brandSection = brandText ? `\n\n${brandText}` : "";
+  const prompt = `${REVISE_SYSTEM}${brandSection}
+
+Current sequence:
+${JSON.stringify(currentSteps, null, 2)}
+
+User request: ${userPrompt}
+
+JSON array:`;
+  return generate(prompt, opts);
+}
