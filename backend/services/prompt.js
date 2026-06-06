@@ -1,4 +1,5 @@
 import { generateJson } from "./gemini.js";
+import { formatBrandGuidelines } from "./brandDoc.js";
 
 const SYSTEM_PROMPT = `You are a B2B prospecting assistant. Convert a natural-language outreach goal into structured Lusha Prospecting API filters.
 
@@ -52,9 +53,10 @@ EXCLUDE EXAMPLES:
 - "no healthcare" → excludeIndustries: ["Healthcare", "Hospitals & Health Care"]`;
 
 
-export async function extractFilters(rawGoal, { generate = generateJson, brandDoc = null } = {}) {
-  const brandContext = brandDoc
-    ? `\n\nBrand context (use this to fill gaps not covered by the goal):\n${brandDoc}`
+export async function extractFilters(rawGoal, { generate = generateJson, brandFields = null } = {}) {
+  const brandText = formatBrandGuidelines(brandFields);
+  const brandContext = brandText
+    ? `\n\nBrand context (use this to fill gaps not covered by the goal):\n${brandText}`
     : "";
   const prompt = `${SYSTEM_PROMPT}\n\nGoal:\n${rawGoal}${brandContext}\n\nJSON:`;
   const result = await generate(prompt);

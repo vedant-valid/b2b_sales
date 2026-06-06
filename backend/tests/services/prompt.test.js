@@ -24,13 +24,27 @@ describe("prompt.extractFilters", () => {
     expect(result.clarification).toMatch(/location/);
   });
 
-  test("appends brand doc context to prompt when provided", async () => {
+  test("appends formatted brand guidelines to prompt when brandFields is provided", async () => {
     let capturedPrompt = null;
     const fakeGen = jest.fn().mockImplementation(async (prompt) => {
       capturedPrompt = prompt;
       return { filters: { locations: ["India"] }, confidence: 0.9 };
     });
-    await extractFilters("find engineers in India", { generate: fakeGen, brandDoc: "Target Founders and CTOs only." });
-    expect(capturedPrompt).toContain("Target Founders and CTOs only.");
+    await extractFilters("find engineers in India", {
+      generate: fakeGen,
+      brandFields: { targetPersonas: "Founders and CTOs only", tone: "Direct" }
+    });
+    expect(capturedPrompt).toContain("Founders and CTOs only");
+    expect(capturedPrompt).toContain("Direct");
+  });
+
+  test("no brand context in prompt when brandFields is null", async () => {
+    let capturedPrompt = null;
+    const fakeGen = jest.fn().mockImplementation(async (prompt) => {
+      capturedPrompt = prompt;
+      return { filters: {}, confidence: 0.9 };
+    });
+    await extractFilters("find engineers", { generate: fakeGen, brandFields: null });
+    expect(capturedPrompt).not.toContain("BRAND GUIDELINES");
   });
 });
