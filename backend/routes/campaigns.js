@@ -159,7 +159,12 @@ router.post("/:id/run", requireRole("ADMIN", "MANAGER"), async (req, res, next) 
         where: { campaignId: campaign.id, email: { not: null } }
       });
       if (leads.length > 0) {
-        await prisma.campaign.update({ where: { id: campaign.id }, data: { status: "RUNNING" } });
+        // Atomic check-and-set: only one concurrent request can flip a non-RUNNING campaign to RUNNING
+        const { count } = await prisma.campaign.updateMany({
+          where: { id: campaign.id, status: { not: "RUNNING" } },
+          data: { status: "RUNNING" }
+        });
+        if (count === 0) return res.status(409).json({ error: "already_running" });
         for (const lead of leads) {
           await boss.send("generate-email", { leadId: lead.id, autoDispatch: true });
         }

@@ -146,6 +146,27 @@ describe("campaigns routes", () => {
 
     expect(res.status).toBe(403);
   });
+
+  test("POST /:id/run is race-safe — concurrent calls queue generate-email only once per lead", async () => {
+    const { user, token } = await createUser({ role: "MANAGER", email: `run${Date.now()}@x.com` });
+    const campaign = await prisma.campaign.create({
+      data: { name: "Race", rawGoal: "g", extractedFilters: {}, mode: "TEST", status: "DRAFT", createdById: user.id }
+    });
+    await prisma.lead.create({
+      data: { firstName: "A", lastName: "B", email: "a@x.com", company: "X", campaignId: campaign.id }
+    });
+
+    const [res1, res2] = await Promise.all([
+      request(app).post(`/api/campaigns/${campaign.id}/run`).set(authHeader(token)),
+      request(app).post(`/api/campaigns/${campaign.id}/run`).set(authHeader(token))
+    ]);
+
+    const statuses = [res1.status, res2.status].sort();
+    expect(statuses).toEqual([200, 409]);
+
+    const updated = await prisma.campaign.findUnique({ where: { id: campaign.id } });
+    expect(updated.status).toBe("RUNNING");
+  });
 });
 
 describe("approval gates", () => {
