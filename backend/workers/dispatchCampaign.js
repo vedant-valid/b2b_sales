@@ -15,7 +15,14 @@ export async function runDispatchJob(job) {
   let instantlyCampaignId = campaign.instantlyCampaignId;
   if (!instantlyCampaignId) {
     const senderEmails = campaign.senderEmail ? [campaign.senderEmail] : undefined;
-    const out = await instantly.createCampaign(campaign.name, { mode: campaign.mode, senderEmails });
+    let sequenceSteps;
+    if (campaign.sequenceApproved) {
+      sequenceSteps = await prisma.sequenceStep.findMany({
+        where: { campaignId },
+        orderBy: { stepNumber: "asc" }
+      });
+    }
+    const out = await instantly.createCampaign(campaign.name, { mode: campaign.mode, senderEmails, sequenceSteps });
     instantlyCampaignId = out.instantlyCampaignId;
     await prisma.campaign.update({
       where: { id: campaignId },

@@ -26,8 +26,42 @@ async function req(path, method, body, { fetch: fetchFn = globalThis.fetch } = {
   return res.json();
 }
 
+export function mapSequenceBody(body) {
+  return body
+    .replaceAll("{{company}}", "{{companyName}}")
+    .replaceAll("{{aiPersonalization}}", "");
+}
+
+function buildSequenceSteps(sequenceSteps, mode) {
+  if (sequenceSteps?.length) {
+    return [...sequenceSteps]
+      .sort((a, b) => a.stepNumber - b.stepNumber)
+      .map((step, i) => ({
+        type: "email",
+        delay: i === 0 ? 0 : step.delayDays,
+        delay_unit: i === 0 ? "minutes" : "days",
+        variants: [{
+          subject: step.subject,
+          body: i === 0 ? "{{personalization}}" : mapSequenceBody(step.body)
+        }]
+      }));
+  }
+
+  return [{
+    type: "email",
+    delay: 0,
+    delay_unit: "minutes",
+    variants: [{
+      subject: mode === "TEST"
+        ? "Campaign Automation Test | Vedant Madne"
+        : "Quick question for {{firstName}} at {{companyName}}",
+      body: "{{personalization}}"
+    }]
+  }];
+}
+
 export async function createCampaign(name, opts = {}) {
-  const { mode, senderEmails, fetch: fetchFn } = opts;
+  const { mode, senderEmails, sequenceSteps, fetch: fetchFn } = opts;
   const sendingAccounts = senderEmails?.length
     ? senderEmails
     : env.INSTANTLY_SENDING_ACCOUNTS?.split(",").map(s => s.trim()).filter(Boolean);
@@ -42,19 +76,7 @@ export async function createCampaign(name, opts = {}) {
     allow_risky_contacts: true,
     ...(sendingAccounts?.length && { email_list: sendingAccounts }),
     campaign_schedule: { schedules: [schedule] },
-    sequences: [{
-      steps: [{
-        type: "email",
-        delay: 0,
-        delay_unit: "minutes",
-        variants: [{
-          subject: mode === "TEST"
-            ? "Campaign Automation Test | Vedant Madne"
-            : "Quick question for {{firstName}} at {{companyName}}",
-          body: "{{personalization}}"
-        }]
-      }]
-    }]
+    sequences: [{ steps: buildSequenceSteps(sequenceSteps, mode) }]
   }, { fetch: fetchFn });
   const instantlyCampaignId = json.id;
 

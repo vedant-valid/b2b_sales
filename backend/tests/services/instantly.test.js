@@ -1,5 +1,5 @@
 import { jest } from "@jest/globals";
-import { createCampaign, pushLeads, sendSubsequence } from "../../services/instantly.js";
+import { createCampaign, pushLeads, sendSubsequence, mapSequenceBody } from "../../services/instantly.js";
 
 function makeFetch(responses) {
   const calls = [];
@@ -64,5 +64,55 @@ describe("instantly service", () => {
   test("throws on non-2xx from campaign creation", async () => {
     const fetch = makeFetch([{ status: 500, body: { error: "server" } }]);
     await expect(createCampaign("X", { fetch })).rejects.toThrow(/instantly/);
+  });
+
+  test("createCampaign builds a multi-step sequence from sequenceSteps", async () => {
+    const fetch = makeFetch([
+      { status: 200, body: { id: "cmp_seq" } }
+    ]);
+    const sequenceSteps = [
+      { stepNumber: 1, subject: "Quick question for {{firstName}}", body: "Hi {{firstName}}, this is the AI-written intro copy that should be discarded in favor of the per-lead draft", delayDays: 0 },
+      { stepNumber: 2, subject: "Following up", body: "Hi {{firstName}} from {{company}} — {{aiPersonalization}}", delayDays: 3 }
+    ];
+    const out = await createCampaign("X", { sequenceSteps, fetch });
+    expect(out.instantlyCampaignId).toBe("cmp_seq");
+
+    const body = JSON.parse(fetch.calls[0].init.body);
+    const steps = body.sequences[0].steps;
+    expect(steps).toHaveLength(2);
+
+    expect(steps[0].delay).toBe(0);
+    expect(steps[0].delay_unit).toBe("minutes");
+    expect(steps[0].variants[0].subject).toBe("Quick question for {{firstName}}");
+    expect(steps[0].variants[0].body).toBe("{{personalization}}");
+
+    expect(steps[1].delay).toBe(3);
+    expect(steps[1].delay_unit).toBe("days");
+    expect(steps[1].variants[0].subject).toBe("Following up");
+    expect(steps[1].variants[0].body).toBe("Hi {{firstName}} from {{companyName}} — ");
+  });
+
+  test("createCampaign falls back to hardcoded single step when sequenceSteps is empty", async () => {
+    const fetch = makeFetch([
+      { status: 200, body: { id: "cmp_empty" } }
+    ]);
+    await createCampaign("X", { sequenceSteps: [], fetch });
+    const body = JSON.parse(fetch.calls[0].init.body);
+    expect(body.sequences[0].steps).toHaveLength(1);
+    expect(body.sequences[0].steps[0].variants[0].body).toBe("{{personalization}}");
+  });
+});
+
+describe("mapSequenceBody", () => {
+  test("passes firstName, lastName and title through unchanged", () => {
+    expect(mapSequenceBody("Hi {{firstName}} {{lastName}}, {{title}}")).toBe("Hi {{firstName}} {{lastName}}, {{title}}");
+  });
+
+  test("renames company to companyName", () => {
+    expect(mapSequenceBody("at {{company}}")).toBe("at {{companyName}}");
+  });
+
+  test("strips aiPersonalization", () => {
+    expect(mapSequenceBody("Hello — {{aiPersonalization}} — bye")).toBe("Hello —  — bye");
   });
 });

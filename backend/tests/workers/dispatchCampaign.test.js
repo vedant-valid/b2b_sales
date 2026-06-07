@@ -89,4 +89,58 @@ describe("dispatchCampaign worker", () => {
     const goodLead = await prisma.lead.findUnique({ where: { id: good.id } });
     expect(goodLead.status).toBe("NEW");
   });
+
+  test("passes approved sequence steps to createCampaign, ordered by stepNumber", async () => {
+    const createCampaign = jest.fn().mockResolvedValue({ instantlyCampaignId: "cmp_seq" });
+    __setInstantlyImpl({
+      createCampaign,
+      pushLeads: jest.fn().mockResolvedValue({ accepted: 1, rejected: [] }),
+      activateCampaign: jest.fn().mockResolvedValue({})
+    });
+    const { user } = await createUser({ email: `u3${Date.now()}${Math.random()}@x.com` });
+    const campaign = await prisma.campaign.create({
+      data: { name: "Z", rawGoal: "g", extractedFilters: {}, createdById: user.id, sequenceApproved: true }
+    });
+    await prisma.sequenceStep.createMany({
+      data: [
+        { campaignId: campaign.id, stepNumber: 2, subject: "S2", body: "Following up", delayDays: 3 },
+        { campaignId: campaign.id, stepNumber: 1, subject: "S1", body: "{{personalization}}", delayDays: 0 }
+      ]
+    });
+    const lead = await prisma.lead.create({
+      data: { firstName: "A", lastName: "B", email: "a@x.com", campaignId: campaign.id }
+    });
+    await prisma.email.create({ data: { leadId: lead.id, subject: "S", body: "B", version: 1 } });
+
+    await runDispatchJob({ data: { campaignId: campaign.id } });
+
+    expect(createCampaign).toHaveBeenCalledTimes(1);
+    const [, createOpts] = createCampaign.mock.calls[0];
+    expect(createOpts.sequenceSteps.map(s => s.stepNumber)).toEqual([1, 2]);
+  });
+
+  test("does not pass sequence steps when sequenceApproved is false", async () => {
+    const createCampaign = jest.fn().mockResolvedValue({ instantlyCampaignId: "cmp_noseq" });
+    __setInstantlyImpl({
+      createCampaign,
+      pushLeads: jest.fn().mockResolvedValue({ accepted: 1, rejected: [] }),
+      activateCampaign: jest.fn().mockResolvedValue({})
+    });
+    const { user } = await createUser({ email: `u4${Date.now()}${Math.random()}@x.com` });
+    const campaign = await prisma.campaign.create({
+      data: { name: "W", rawGoal: "g", extractedFilters: {}, createdById: user.id, sequenceApproved: false }
+    });
+    await prisma.sequenceStep.createMany({
+      data: [{ campaignId: campaign.id, stepNumber: 1, subject: "S1", body: "{{personalization}}", delayDays: 0 }]
+    });
+    const lead = await prisma.lead.create({
+      data: { firstName: "A", lastName: "B", email: "a@x.com", campaignId: campaign.id }
+    });
+    await prisma.email.create({ data: { leadId: lead.id, subject: "S", body: "B", version: 1 } });
+
+    await runDispatchJob({ data: { campaignId: campaign.id } });
+
+    const [, createOpts] = createCampaign.mock.calls[0];
+    expect(createOpts.sequenceSteps).toBeUndefined();
+  });
 });
