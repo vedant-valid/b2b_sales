@@ -9,7 +9,9 @@
     "test": "DATABASE_URL=postgresql://vedantmadne@localhost:5432/outreach_test NODE_OPTIONS=--experimental-vm-modules jest",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
-    "prisma:seed": "node prisma/seed.js"
+    "prisma:seed": "node prisma/seed.js",
+    "db:backup": "bash scripts/backup-db.sh",
+    "db:restore": "bash scripts/restore-db.sh"
   },
   "prisma": {
     "seed": "node prisma/seed.js"
