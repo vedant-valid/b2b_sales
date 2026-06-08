@@ -18,7 +18,14 @@ export async function runFetchLeadsJob(job) {
 
   await prisma.campaign.update({ where: { id: campaignId }, data: { status: "RUNNING" } });
 
-  const rawResults = await lusha.searchLeadsBasic(campaign.extractedFilters);
+  let rawResults;
+  try {
+    rawResults = await lusha.searchLeadsBasic(campaign.extractedFilters);
+  } catch (err) {
+    // Revert so a failed lookup (e.g. Lusha credit limit) doesn't leave the campaign permanently stuck in RUNNING
+    await prisma.campaign.update({ where: { id: campaignId }, data: { status: campaign.status } });
+    throw err;
+  }
 
   // Post-filter by titleKeywords (include) then excludeTitleKeywords (exclude)
   const keywords = campaign.extractedFilters?.titleKeywords;

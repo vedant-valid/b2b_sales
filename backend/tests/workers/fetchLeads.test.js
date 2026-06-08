@@ -43,6 +43,23 @@ describe("fetchLeads worker (Phase 1 — basic discovery, no credits)", () => {
     expect(updated.status).toBe("AWAITING_LEAD_SELECTION");
   });
 
+  test("Lusha search failure reverts status instead of leaving campaign stuck in RUNNING", async () => {
+    __setLushaImpl({
+      searchLeadsBasic: jest.fn().mockRejectedValue(new Error("lusha_search_failed_402: credit limit"))
+    });
+
+    const { user } = await createUser({ role: "MANAGER", email: `u7${Date.now()}@x.com` });
+    const campaign = await prisma.campaign.create({
+      data: { name: "X", rawGoal: "g", extractedFilters: {}, createdById: user.id }
+    });
+    expect(campaign.status).toBe("DRAFT");
+
+    await expect(runFetchLeadsJob({ data: { campaignId: campaign.id } })).rejects.toThrow(/credit limit/);
+
+    const updated = await prisma.campaign.findUnique({ where: { id: campaign.id } });
+    expect(updated.status).toBe("DRAFT");
+  });
+
   test("zero leads from Lusha → campaign COMPLETED", async () => {
     __setLushaImpl({ searchLeadsBasic: jest.fn().mockResolvedValue([]) });
 
