@@ -125,6 +125,7 @@ export async function sendSubsequence(instantlyCampaignId, email, body, opts = {
   const subsequenceId = await createFollowUpSubsequence(instantlyCampaignId, "Re:", body, opts);
   const leadId = await lookupInstantlyLeadId(instantlyCampaignId, email, opts);
   await moveLeadToSubsequence(leadId, subsequenceId, opts);
+  await resumeSubsequence(subsequenceId, opts);
 }
 
 export async function createFollowUpSubsequence(instantlyCampaignId, subject, body, opts = {}) {
@@ -144,6 +145,11 @@ export async function moveLeadToSubsequence(instantlyLeadId, subsequenceId, opts
     id: instantlyLeadId,
     subsequence_id: subsequenceId
   }, opts);
+}
+
+// Newly created subsequences start paused; they must be resumed before Instantly will send.
+export async function resumeSubsequence(subsequenceId, opts = {}) {
+  await req(`/api/v2/subsequences/${subsequenceId}/resume`, "POST", {}, opts);
 }
 
 export async function getCampaignAnalytics(instantlyCampaignId, opts = {}) {

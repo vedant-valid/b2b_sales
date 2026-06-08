@@ -56,9 +56,25 @@ describe("instantly service", () => {
       { status: 200, body: { id: "sub_123" } },                       // createFollowUpSubsequence
       { status: 200, body: { items: [{ id: "lead_456" }] } },         // lookupInstantlyLeadId
       { status: 200, body: { ok: true } },                            // moveLeadToSubsequence
+      { status: 200, body: { ok: true } },                            // resumeSubsequence
     ]);
     await expect(sendSubsequence("cmp_123", "lead@x.com", "follow-up body", { fetch })).resolves.not.toThrow();
     expect(fetch.calls[0].url).toMatch(/subsequences/);
+  });
+
+  test("sendSubsequence resumes the newly created subsequence so Instantly actually sends it", async () => {
+    const fetch = makeFetch([
+      { status: 200, body: { id: "sub_123" } },                       // createFollowUpSubsequence
+      { status: 200, body: { items: [{ id: "lead_456" }] } },         // lookupInstantlyLeadId
+      { status: 200, body: { ok: true } },                            // moveLeadToSubsequence
+      { status: 200, body: { ok: true } },                            // resumeSubsequence
+    ]);
+    await sendSubsequence("cmp_123", "lead@x.com", "follow-up body", { fetch });
+
+    const resumeCall = fetch.calls.find(c => /\/resume$/.test(c.url));
+    expect(resumeCall).toBeDefined();
+    expect(resumeCall.url).toMatch(/\/subsequences\/sub_123\/resume$/);
+    expect(resumeCall.init.method).toBe("POST");
   });
 
   test("throws on non-2xx from campaign creation", async () => {
