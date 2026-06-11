@@ -30,14 +30,22 @@ export default function JobProgressBar({ jobId, onComplete }) {
 
   if (!job) return <p className="text-sm text-gray-500 animate-pulse">Finding leads… this usually takes 20–30 seconds</p>;
 
-  const messages = {
-    completed: "Done — leads loaded below",
-    failed: "Something went wrong. Try running the campaign again.",
-  };
+  if (job.state === "failed") {
+    const raw = job.output?.message ?? "";
+    const isLushaLimit = raw.includes("credit limit") || raw.includes("402");
+    const detail = isLushaLimit
+      ? "Lusha search quota reached — upgrade your Lusha account and try again."
+      : raw || "Something went wrong. Try running the campaign again.";
+    return <p className="text-sm text-red-600">{detail}</p>;
+  }
+
+  if (job.state === "completed") {
+    return <p className="text-sm text-gray-500">Done — leads loaded below</p>;
+  }
 
   return (
-    <div className={`text-sm ${job.state === "failed" ? "text-red-600" : "text-gray-500"}`}>
-      {messages[job.state] ?? "Finding leads… this usually takes 20–30 seconds"}
+    <div className="text-sm text-gray-500">
+      Finding leads… this usually takes 20–30 seconds
       {job.retryCount > 0 && <span className="text-amber-600 ml-2">(retrying…)</span>}
     </div>
   );

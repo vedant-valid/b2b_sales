@@ -26,6 +26,7 @@ router.get("/:id", async (req, res, next) => {
         name: job.name,
         state: job.state,
         data: job.data,
+        output: job.output ?? null,
         createdOn: job.createdOn,
         completedOn: job.completedOn,
         retryCount: job.retryCount
