@@ -12,7 +12,7 @@ function wrap(ui) {
 
 afterEach(() => { vi.clearAllMocks(); });
 
-test("shows a Lusha plan-restriction message (not a quota message) for the search 402", async () => {
+test("shows an account/key-provisioning message (not a quota message) for the search 402", async () => {
   apiFetch.mockResolvedValueOnce({
     job: {
       id: "job-1",
@@ -25,9 +25,10 @@ test("shows a Lusha plan-restriction message (not a quota message) for the searc
   wrap(<JobProgressBar jobId="job-1" />);
 
   await waitFor(() => {
-    expect(screen.getByText(/doesn't include prospecting/i)).toBeInTheDocument();
+    expect(screen.getByText(/isn't provisioned for prospecting\/search/i)).toBeInTheDocument();
   });
   expect(screen.queryByText(/quota reached/i)).not.toBeInTheDocument();
+  expect(screen.queryByText(/plan doesn't include/i)).not.toBeInTheDocument();
 });
 
 test("still shows the raw failure message for non-Lusha-quota failures", async () => {

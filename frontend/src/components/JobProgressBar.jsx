@@ -42,7 +42,7 @@ export default function JobProgressBar({ jobId, onComplete, onFailed }) {
   if (job.state === "failed") {
     const raw = job.output?.message ?? "";
     const detail = isLushaCreditLimit(raw)
-      ? "Lusha blocked this search — your plan doesn't include Prospecting/Search access (this is separate from your credit balance). Contact Lusha support before retrying; failed attempts still use credits."
+      ? "Lusha rejected this search with \"credit limit reached\", even though the account has a large credit balance remaining — Lusha returns this same message both when credits are exhausted and when an account or API key isn't provisioned for Prospecting/Search. Contact Lusha support to check this key's access before retrying; failed attempts still consume credits."
       : raw || "Something went wrong. Try running the campaign again.";
     return <p className="text-sm text-red-600">{detail}</p>;
   }
