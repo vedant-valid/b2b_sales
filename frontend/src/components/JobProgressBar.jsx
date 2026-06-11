@@ -3,11 +3,18 @@ import { useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { apiFetch } from "@/lib/api";
 
-export default function JobProgressBar({ jobId, onComplete }) {
+function isLushaCreditLimit(message) {
+  const raw = message ?? "";
+  return raw.includes("credit limit") || raw.includes("402");
+}
+
+export default function JobProgressBar({ jobId, onComplete, onFailed }) {
   const { data: session } = useSession();
   const [job, setJob] = useState(null);
   const onCompleteRef = useRef(onComplete);
   onCompleteRef.current = onComplete;
+  const onFailedRef = useRef(onFailed);
+  onFailedRef.current = onFailed;
 
   useEffect(() => {
     if (!jobId || !session?.backendToken) return;
@@ -21,6 +28,8 @@ export default function JobProgressBar({ jobId, onComplete }) {
           setTimeout(poll, 2000);
         } else if (job.state === "completed") {
           onCompleteRef.current?.();
+        } else if (job.state === "failed") {
+          onFailedRef.current?.(isLushaCreditLimit(job.output?.message));
         }
       } catch { /* ignore */ }
     }
@@ -32,9 +41,8 @@ export default function JobProgressBar({ jobId, onComplete }) {
 
   if (job.state === "failed") {
     const raw = job.output?.message ?? "";
-    const isLushaLimit = raw.includes("credit limit") || raw.includes("402");
-    const detail = isLushaLimit
-      ? "Lusha search quota reached — upgrade your Lusha account and try again."
+    const detail = isLushaCreditLimit(raw)
+      ? "Lusha blocked this search — your plan doesn't include Prospecting/Search access (this is separate from your credit balance). Contact Lusha support before retrying; failed attempts still use credits."
       : raw || "Something went wrong. Try running the campaign again.";
     return <p className="text-sm text-red-600">{detail}</p>;
   }

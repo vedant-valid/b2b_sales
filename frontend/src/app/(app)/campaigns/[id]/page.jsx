@@ -14,6 +14,7 @@ import StepBar from "@/components/StepBar";
 import ActionCard from "@/components/ActionCard";
 import FilterEditor from "@/components/FilterEditor";
 import { campaignStatusLabel } from "@/lib/campaignStatus";
+import { shouldRerun } from "@/lib/lushaGuard";
 
 const DEV_MODE = process.env.NEXT_PUBLIC_DEV_MODE === "true";
 
@@ -39,6 +40,7 @@ export default function CampaignDetailPage({ params }) {
   const [filterError, setFilterError] = useState("");
   const [rerunning, setRerunning] = useState(false);
   const [analytics, setAnalytics] = useState(null);
+  const [lushaBlocked, setLushaBlocked] = useState(false);
 
   const loadCampaign = useCallback(() => {
     if (!session?.backendToken) return;
@@ -71,12 +73,14 @@ export default function CampaignDetailPage({ params }) {
   }, [campaign?.instantlyCampaignId, loadAnalytics]);
 
   async function onRun() {
+    if (!shouldRerun(lushaBlocked, (msg) => confirm(msg))) return;
     setError("");
     try {
       const { jobId } = await apiFetch(`/api/campaigns/${id}/run`, {
         token: session.backendToken, method: "POST"
       });
       setJobId(jobId);
+      setLushaBlocked(false);
     } catch (e) { setError(e.message); }
   }
 
@@ -362,7 +366,13 @@ export default function CampaignDetailPage({ params }) {
         </div>
       )}
 
-      {jobId && <JobProgressBar jobId={jobId} onComplete={() => { loadCampaign(); loadLeads(); }} />}
+      {jobId && (
+        <JobProgressBar
+          jobId={jobId}
+          onComplete={() => { loadCampaign(); loadLeads(); }}
+          onFailed={setLushaBlocked}
+        />
+      )}
       {error && <p className="text-red-600 text-sm">{error}</p>}
 
       {!["AWAITING_LEAD_APPROVAL", "AWAITING_LEAD_SELECTION"].includes(campaign.status) && (
