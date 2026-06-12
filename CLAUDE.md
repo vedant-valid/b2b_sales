@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-AI-powered B2B outreach platform. Users define campaigns in plain English; the system uses Gemini to extract structured lead filters, Lusha to fetch and enrich leads, generates personalised emails via Gemini, dispatches them through Instantly.ai, and classifies inbound replies with sentiment analysis.
+AI-powered B2B outreach platform. Users define campaigns in plain English; the system uses Groq (Llama 3.3 70B) to extract structured lead filters, Lusha to fetch and enrich leads, generates personalised emails via the same Groq/Llama model, dispatches them through Instantly.ai, and classifies inbound replies with sentiment analysis.
 
 ## Repository Layout
 
@@ -63,9 +63,9 @@ Four workers registered on startup in `workers/index.js`:
 **Pipeline chain**: `fetch-leads` → `generate-email` (one per lead) → `dispatch-to-instantly` → Instantly sends emails → webhook → `process-reply`.
 
 ### Services
-- `services/prompt.js` — `extractFilters(rawGoal)`: calls Gemini to convert natural-language campaign goals into Lusha filter JSON
+- `services/prompt.js` — `extractFilters(rawGoal)`: calls Groq/Llama to convert natural-language campaign goals into Lusha filter JSON
 - `services/lusha.js` — `searchLeads(filters)`: fetches + enriches leads (returns email included)
-- `services/gemini.js` — thin wrapper around `@google/generative-ai`
+- `services/gemini.js` — thin wrapper around `groq-sdk` (Groq Cloud, model `GROQ_MODEL` = `llama-3.3-70b-versatile`); despite the filename, this is not Google Gemini — `GEMINI_API_KEY`/`GEMINI_MODEL` are unused legacy env vars
 - `services/instantly.js` — `createCampaign`, `pushLeads`, `activateCampaign`
 - `services/replyHandler.js` — `classifySentiment`, `draftFollowUp`
 - `services/emailGen.js` — generates personalised email subject/body per lead
@@ -82,7 +82,7 @@ Key enums: `Role` (ADMIN/MANAGER/VIEWER), `CampaignStatus`, `LeadStatus`, `Email
 `Reply` has a composite unique index on `(leadId, receivedAt)` for webhook idempotency.
 
 ### Environment variables (`backend/config/env.js`)
-Validated with Zod at startup. Required: `DATABASE_URL`, `JWT_SECRET`. Optional: `GEMINI_API_KEY`, `LUSHA_API_KEY`, `INSTANTLY_API_KEY`, `INSTANTLY_WEBHOOK_SECRET`. Defaults: `PORT=4000`, `FRONTEND_URL=http://localhost:3000`.
+Validated with Zod at startup. Required: `DATABASE_URL`, `JWT_SECRET`. Optional: `GROQ_API_KEY`, `LUSHA_API_KEY`, `INSTANTLY_API_KEY`, `INSTANTLY_WEBHOOK_SECRET`. Defaults: `PORT=4000`, `FRONTEND_URL=http://localhost:3000`.
 
 ## Frontend Architecture
 
