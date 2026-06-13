@@ -148,13 +148,35 @@ Class mapping to apply throughout:
 | Old | New |
 |---|---|
 | `bg-white` (page/panel background) | `bg-card` |
-| `bg-gray-50`, `bg-gray-100` (subtle backgrounds) | `bg-muted` |
+| `bg-gray-50` (subtle backgrounds), static `bg-gray-100` badges | `bg-muted` |
 | `text-gray-400`, `text-gray-500`, `text-gray-600` | `text-muted-foreground` |
-| `text-gray-900`, default/inherited text, `text-black` | `text-foreground` |
-| `border`, `border-gray-200`, `border-gray-300` | `border-border` |
-| `bg-purple-600` + white text (primary buttons) | `bg-primary text-primary-foreground` |
+| `text-gray-700`, `text-gray-900`, default/inherited text | `text-foreground` |
+| `border`, `border-b`, `border-t`, `border-gray-200`, `border-gray-300` (no explicit color) | No change — covered by a new base-layer rule (see below) |
+| `bg-purple-600`/`bg-purple-700` + white text (Unlock/Save/Revise buttons) | `bg-primary text-primary-foreground` |
+| `bg-black text-white`, `bg-gray-800 text-white` (high-contrast CTA buttons — the app's most common primary-button style) | `bg-foreground text-background` |
+| `border-black text-black` (outlined secondary button) | `border-foreground text-foreground` |
+| `hover:bg-gray-100`, `hover:bg-gray-200` (interactive hover surfaces) | `hover:bg-accent` |
 | Sidebar active item (`bg-white border-l-2 border-black ... text-black`) | `bg-accent border-l-2 border-foreground text-accent-foreground` |
-| Accent colors used 3-5x each (`bg-amber-50`, `text-amber-700`, `border-amber-300`, `text-red-600`, etc.) | Add inline `dark:` variant per occurrence, e.g. `text-red-600 dark:text-red-400`, `bg-amber-50 dark:bg-amber-950/30` |
+| Accent colors used a handful of times each — error/warning/success/info text and panels (`text-red-600`, `bg-amber-50`/`text-amber-700`/`border-amber-300`, `bg-green-50`/`text-green-700`, `bg-blue-50`/`text-blue-700`/`text-blue-900`, etc.) | Add inline `dark:` variant per occurrence, following the convention below |
+| Status/sentiment badges (`bg-{color}-100 text-{color}-700`, e.g. `LeadStatusBadge`, `SentimentBadge`, "Approved"/"Template" badges) | Add `dark:bg-{color}-900/40 dark:text-{color}-300` |
+
+**`dark:` variant convention for accent colors** (applied per-occurrence, not as tokens):
+- Light panel + border (`bg-{color}-50 border-{color}-200/300`) → add `dark:bg-{color}-950/30 dark:border-{color}-800`
+- Badge (`bg-{color}-100 text-{color}-600/700/800`) → add `dark:bg-{color}-900/40 dark:text-{color}-300`
+- Plain accent text (`text-{color}-500/600/700/900`) → add `dark:text-{color}-400` (or `dark:text-{color}-200` for the darkest `-900` shades)
+- Solid saturated action buttons (`bg-green-600`, `bg-purple-600`, `bg-purple-700`, `bg-amber-500` dot) → no change; already have sufficient contrast on both `bg-card` and `bg-background`
+
+### Base border-color rule
+
+Many elements use bare `border`, `border-b`, `border-t`, etc. without an explicit color, relying on Tailwind's default border color. Add a base-layer rule so these automatically pick up the `border` token in both themes, without touching every call site:
+
+```css
+@layer base {
+  *, ::before, ::after {
+    border-color: var(--color-border);
+  }
+}
+```
 
 ## Out of scope / non-goals
 
