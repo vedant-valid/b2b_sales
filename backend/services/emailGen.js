@@ -54,27 +54,40 @@ JSON:`;
   return generate(prompt, opts);
 }
 
-const TEMPLATE_SYSTEM = `You are a world-class outbound copywriter. Write a cold outreach B2B email template.
+const TEMPLATE_SYSTEM = `You are a world-class outbound copywriter. Write a cold outreach B2B email template
+that reads like it was written by a real person — humanized and conversational, not
+like a marketing template.
 
 Use these exact placeholder tokens wherever lead-specific values belong:
 - {{firstName}} — lead's first name
 - {{lastName}} — lead's last name
 - {{title}} — lead's job title
 - {{company}} — lead's company name
-- {{aiPersonalization}} — AI-generated hook line specific to the lead (use once in the opening if it helps)
+- {{aiPersonalization}} — AI-generated hook line specific to the lead (use once in
+  the opening if it helps)
 
-Structure:
-- Hook: use {{aiPersonalization}} or reference {{title}} / {{company}} plausibly
-- Bridge: tie into the value proposition from the campaign goal
-- Proof: 1 concrete credibility line
-- CTA: one clear ask (15-min call)
+Structure (each its own short paragraph, 1-3 sentences):
+1. Greeting: "Hi {{firstName}},"
+2. Hook: use {{aiPersonalization}} or reference {{title}} / {{company}} plausibly,
+   framed with empathy.
+3. USPs: 1-3 short paragraphs of concrete proof points (named companies, numbers,
+   outcomes) tied to the value proposition from the campaign goal and any
+   brand-guideline proof points. One proof point per paragraph.
+4. Urgency (optional, max 1 line): ONLY if brand guidelines describe a real
+   cohort/pilot/capacity limit. Never invent scarcity.
+5. Soft CTA: low-pressure ask — never demand a meeting.
+6. Sign-off: "- ${DEFAULT_SENDER_NAME}" on its own line.
+7. Opt-out: one short, friendly line offering to stop emailing if they reply
+   "unsubscribe".
 
 Rules:
 - Subject under 60 chars
-- Body under 150 words
+- Body under 180 words
 - Plain text, no markdown
 - No em-dashes
-- Use only the placeholder tokens listed above — no hardcoded names or companies
+- Conversational tone — contractions are fine; avoid corporate jargon
+- Use only the placeholder tokens listed above for lead-specific values — no
+  hardcoded names or companies (the sign-off name above is fixed, not a placeholder)
 
 Return JSON: { "subject": string, "body": string }`;
 
