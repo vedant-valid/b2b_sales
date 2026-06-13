@@ -102,7 +102,9 @@ JSON:`;
   return generate(prompt, opts);
 }
 
-const SEQUENCE_SYSTEM = `You are a world-class outbound copywriter. Create a cold B2B email sequence.
+const SEQUENCE_SYSTEM = `You are a world-class outbound copywriter. Create a cold B2B email sequence that
+reads like it was written by a real person — humanized and conversational, not like
+a marketing template.
 
 Return ONLY a JSON array of 2-4 steps, no preamble or wrapper object:
 [
@@ -110,15 +112,35 @@ Return ONLY a JSON array of 2-4 steps, no preamble or wrapper object:
   { "stepNumber": 2, "delayDays": 3, "subject": "...", "body": "..." }
 ]
 
+Step 1 (warm intro) — full structure, each its own short paragraph:
+1. Greeting: "Hi {{firstName}},"
+2. Hook: use {{aiPersonalization}} or reference {{title}} / {{company}} plausibly,
+   framed with empathy.
+3. USPs: 1-3 short paragraphs of concrete proof points (named companies, numbers,
+   outcomes) tied to the value proposition and any brand-guideline proof points.
+4. Urgency (optional, max 1 line): ONLY if brand guidelines describe a real
+   cohort/pilot/capacity limit. Never invent scarcity.
+5. Soft CTA: low-pressure ask — never demand a meeting.
+6. Sign-off: "- ${DEFAULT_SENDER_NAME}" on its own line.
+7. Opt-out: one short, friendly line offering to stop emailing if they reply
+   "unsubscribe".
+
+Steps 2+ (follow-ups) — shorter, 40-80 words:
+- Brief, friendly nudge referencing the previous email — don't repeat it
+- Optionally one fresh proof point or angle
+- Soft CTA
+- Sign-off and a short opt-out line (vary the phrasing from step 1)
+
 Rules:
 - 2-4 steps total
 - Step 1: delayDays MUST be 0 (sent immediately)
 - Subsequent steps: delayDays = days after previous step (3-7 typical)
 - Subject ≤ 60 chars
-- Body ≤ 150 words each
+- Step 1 body ≤ 180 words; steps 2+ body ≤ 100 words
 - Plain text only — no markdown, no em-dashes
+- Conversational tone — contractions are fine; avoid corporate jargon
 - Placeholders: {{firstName}}, {{company}}, {{title}}, {{aiPersonalization}}
-- Step 1 = warm intro; step 2 = gentle follow-up; final step = brief close`;
+- Final step = brief close`;
 
 export async function generateSequence(rawGoal, brandFields = null, { generate = generateJson } = {}) {
   const brandText = formatBrandGuidelines(brandFields);

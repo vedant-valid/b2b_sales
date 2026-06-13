@@ -1,5 +1,5 @@
 import { jest } from "@jest/globals";
-import { generateSequence, reviseSequence } from "../../services/emailGen.js";
+import { generateSequence, reviseSequence, DEFAULT_SENDER_NAME } from "../../services/emailGen.js";
 
 const fakeGenerate = jest.fn();
 
@@ -30,6 +30,19 @@ describe("generateSequence", () => {
     await generateSequence("goal", brandFields, { generate: fakeGenerate });
     const [, calledOpts] = fakeGenerate.mock.calls[0];
     expect(calledOpts.systemInstruction).toContain("professional");
+  });
+
+  test("prompt includes humanized structure: sign-off with DEFAULT_SENDER_NAME, opt-out, USPs, and per-step length rules", async () => {
+    fakeGenerate.mockResolvedValueOnce([
+      { stepNumber: 1, delayDays: 0, subject: "Sub", body: "Body" }
+    ]);
+    await generateSequence("Find CTOs in India", null, { generate: fakeGenerate });
+    const calledPrompt = fakeGenerate.mock.calls[0][0];
+    expect(calledPrompt).toContain("Sign-off");
+    expect(calledPrompt).toContain("unsubscribe");
+    expect(calledPrompt).toContain("USPs");
+    expect(calledPrompt).toContain(DEFAULT_SENDER_NAME);
+    expect(calledPrompt).toContain("40-80 words");
   });
 });
 
