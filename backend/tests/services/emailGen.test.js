@@ -38,7 +38,19 @@ describe("generateDraft", () => {
     const lead = { firstName: "Alice", lastName: "Smith", title: "CTO", company: "Acme" };
     const profile = { senderName: "Bob", senderCompany: "NST", valueProp: "NST builds" };
     await generateDraft(lead, profile, { generate: fake, brandFields: null });
-    expect(capturedOpts).toEqual({});
+    expect(capturedOpts).toEqual({ responseFormat: { type: "json_object" } });
+  });
+
+  test("requests JSON-object response format from Groq", async () => {
+    let capturedOpts = null;
+    const fake = jest.fn().mockImplementation(async (prompt, opts) => {
+      capturedOpts = opts;
+      return { subject: "Test", body: "Hi" };
+    });
+    const lead = { firstName: "Alice", lastName: "Smith", title: "CTO", company: "Acme" };
+    const profile = { senderName: "Bob", senderCompany: "NST", valueProp: "NST builds" };
+    await generateDraft(lead, profile, { generate: fake });
+    expect(capturedOpts.responseFormat).toEqual({ type: "json_object" });
   });
 
   test("prompt includes humanized structure: sign-off, opt-out, and USPs", async () => {
@@ -95,5 +107,15 @@ describe("generateTemplateEmail", () => {
     expect(capturedPrompt).toContain("unsubscribe");
     expect(capturedPrompt).toContain("USPs");
     expect(capturedPrompt).toContain(DEFAULT_SENDER_NAME);
+  });
+
+  test("requests JSON-object response format from Groq", async () => {
+    let capturedOpts = null;
+    const fake = jest.fn().mockImplementation(async (_prompt, opts) => {
+      capturedOpts = opts;
+      return { subject: "S", body: "B" };
+    });
+    await generateTemplateEmail("hire engineers fast", null, { generate: fake });
+    expect(capturedOpts.responseFormat).toEqual({ type: "json_object" });
   });
 });

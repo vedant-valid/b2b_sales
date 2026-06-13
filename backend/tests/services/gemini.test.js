@@ -108,4 +108,38 @@ describe("gemini.generateJson (Groq backend)", () => {
     const result = await generateJson("prompt");
     expect(result.body).toBe("Line one\nLine two");
   });
+
+  test("passes response_format to the Groq API when responseFormat option is given", async () => {
+    let capturedParams = null;
+    const fakeClient = {
+      chat: {
+        completions: {
+          create: jest.fn().mockImplementation(async (params) => {
+            capturedParams = params;
+            return { choices: [{ message: { content: '{"foo":"bar"}' } }] };
+          })
+        }
+      }
+    };
+    __setClientForTest(fakeClient);
+    await generateJson("prompt", { responseFormat: { type: "json_object" } });
+    expect(capturedParams.response_format).toEqual({ type: "json_object" });
+  });
+
+  test("omits response_format when responseFormat option is not given", async () => {
+    let capturedParams = null;
+    const fakeClient = {
+      chat: {
+        completions: {
+          create: jest.fn().mockImplementation(async (params) => {
+            capturedParams = params;
+            return { choices: [{ message: { content: '{"foo":"bar"}' } }] };
+          })
+        }
+      }
+    };
+    __setClientForTest(fakeClient);
+    await generateJson("prompt");
+    expect(capturedParams.response_format).toBeUndefined();
+  });
 });

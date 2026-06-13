@@ -36,7 +36,7 @@ Return JSON: { "subject": string, "body": string }`;
 
 export async function generateDraft(lead, profile, { generate = generateJson, brandFields = null } = {}) {
   const brandText = formatBrandGuidelines(brandFields);
-  const opts = brandText ? { systemInstruction: brandText } : {};
+  const opts = { responseFormat: { type: "json_object" }, ...(brandText ? { systemInstruction: brandText } : {}) };
   const prompt = `${SYSTEM}
 
 Lead:
@@ -93,7 +93,7 @@ Return JSON: { "subject": string, "body": string }`;
 
 export async function generateTemplateEmail(rawGoal, brandFields = null, { generate = generateJson } = {}) {
   const brandText = formatBrandGuidelines(brandFields);
-  const opts = brandText ? { systemInstruction: brandText } : {};
+  const opts = { responseFormat: { type: "json_object" }, ...(brandText ? { systemInstruction: brandText } : {}) };
   const prompt = `${TEMPLATE_SYSTEM}
 
 Campaign goal: ${rawGoal}

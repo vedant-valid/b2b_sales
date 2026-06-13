@@ -97,7 +97,7 @@ function isRateLimit(err) {
     || String(err.message).toLowerCase().includes("quota");
 }
 
-export async function generateText(prompt, { systemInstruction, retries = 3, retryDelayMs = 2000 } = {}) {
+export async function generateText(prompt, { systemInstruction, retries = 3, retryDelayMs = 2000, responseFormat } = {}) {
   const c = getClient();
   const messages = [];
   if (systemInstruction) messages.push({ role: "system", content: systemInstruction });
@@ -109,6 +109,7 @@ export async function generateText(prompt, { systemInstruction, retries = 3, ret
         model: env.GROQ_MODEL,
         messages,
         temperature: 0.7,
+        ...(responseFormat ? { response_format: responseFormat } : {}),
       });
       return res.choices[0].message.content;
     } catch (err) {
