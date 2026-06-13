@@ -6,7 +6,7 @@ vi.mock("@/lib/api", () => ({ apiFetch: vi.fn() }));
 
 import { apiFetch } from "@/lib/api";
 
-const mkLead = (status) => ({ id: "lead-1", status });
+const mkLead = (status, overrides = {}) => ({ id: "lead-1", status, email: "lead@example.com", ...overrides });
 
 afterEach(() => { vi.clearAllMocks(); });
 
