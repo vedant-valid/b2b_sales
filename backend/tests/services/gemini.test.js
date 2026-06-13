@@ -32,4 +32,21 @@ describe("gemini.generateJson (Groq backend)", () => {
     __setClientForTest(fakeClient);
     await expect(generateJson("prompt")).rejects.toThrow();
   });
+
+  test("parses JSON containing literal newlines inside string values", async () => {
+    const content = '{\n  "subject": "Hi",\n  "body": "Line one.\nLine two.\n- Sign off"\n}';
+    const fakeClient = {
+      chat: {
+        completions: {
+          create: jest.fn().mockResolvedValue({
+            choices: [{ message: { content } }]
+          })
+        }
+      }
+    };
+    __setClientForTest(fakeClient);
+    const result = await generateJson("prompt");
+    expect(result.subject).toBe("Hi");
+    expect(result.body).toBe("Line one.\nLine two.\n- Sign off");
+  });
 });
