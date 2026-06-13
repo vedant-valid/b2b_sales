@@ -43,18 +43,21 @@ function sanitizeJsonControlChars(text) {
       continue;
     }
 
-    if (inString && char === "\n") {
-      result += "\\n";
-      continue;
-    }
-
-    if (inString && char === "\r") {
-      result += "\\r";
-      continue;
-    }
-
-    if (inString && char === "\t") {
-      result += "\\t";
+    // Any raw C0 control character (U+0000-U+001F) inside a string is
+    // illegal in JSON. Prefer the standard two-char escapes for the three
+    // common ones (newline/carriage-return/tab), and fall back to a
+    // generic `\u00XX` escape for the rest (e.g. U+0001, U+000B, U+001F).
+    if (inString && char.charCodeAt(0) < 0x20) {
+      if (char === "\n") {
+        result += "\\n";
+      } else if (char === "\r") {
+        result += "\\r";
+      } else if (char === "\t") {
+        result += "\\t";
+      } else {
+        const hex = char.charCodeAt(0).toString(16).padStart(2, "0");
+        result += `\\u00${hex}`;
+      }
       continue;
     }
 
