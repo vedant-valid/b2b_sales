@@ -40,6 +40,20 @@ describe("generateDraft", () => {
     await generateDraft(lead, profile, { generate: fake, brandFields: null });
     expect(capturedOpts).toEqual({});
   });
+
+  test("prompt includes humanized structure: sign-off, opt-out, and USPs", async () => {
+    let capturedPrompt = null;
+    const fake = jest.fn().mockImplementation(async (prompt) => {
+      capturedPrompt = prompt;
+      return { subject: "Test", body: "Hi" };
+    });
+    const lead = { firstName: "Alice", lastName: "Smith", title: "CTO", company: "Acme" };
+    const profile = { senderName: "Bob", senderCompany: "NST", valueProp: "NST builds" };
+    await generateDraft(lead, profile, { generate: fake });
+    expect(capturedPrompt).toContain("Sign-off");
+    expect(capturedPrompt).toContain("unsubscribe");
+    expect(capturedPrompt).toContain("USPs");
+  });
 });
 
 describe("generateTemplateEmail", () => {
