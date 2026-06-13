@@ -30,7 +30,7 @@ export default function Sidebar() {
   }, [session?.backendToken]);
 
   return (
-    <nav className="w-52 border-r bg-gray-50 flex flex-col shrink-0">
+    <nav className="w-52 border-r bg-muted flex flex-col shrink-0">
       <div className="flex-1 p-3 space-y-0.5 pt-4">
         {NAV.filter(item => !item.adminOnly || session?.user?.role === "ADMIN").map(({ href, label, icon }) => {
           const active = pathname === href || (href !== "/dashboard" && pathname.startsWith(href));
@@ -40,8 +40,8 @@ export default function Sidebar() {
               href={href}
               className={`flex items-center gap-2.5 px-3 py-2 rounded text-sm transition-colors ${
                 active
-                  ? "bg-white border-l-2 border-black font-semibold text-black shadow-sm"
-                  : "text-gray-600 hover:bg-gray-200 border-l-2 border-transparent"
+                  ? "bg-accent border-l-2 border-foreground font-semibold text-accent-foreground shadow-sm"
+                  : "text-muted-foreground hover:bg-accent border-l-2 border-transparent"
               }`}
             >
               <Image src={icon} alt={label} width={20} height={20} className="shrink-0" />
@@ -51,8 +51,8 @@ export default function Sidebar() {
         })}
       </div>
       {credits !== null && (
-        <div className="px-4 py-3 border-t text-xs text-gray-500">
-          <span className="font-medium text-gray-700">{credits}</span> credits remaining
+        <div className="px-4 py-3 border-t text-xs text-muted-foreground">
+          <span className="font-medium text-foreground">{credits}</span> credits remaining
         </div>
       )}
     </nav>
