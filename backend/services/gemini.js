@@ -12,10 +12,76 @@ function getClient() {
 
 export function __setClientForTest(c) { client = c; }
 
+// Groq sometimes returns JSON where multi-paragraph string values contain
+// literal newline/carriage-return/tab characters instead of the escaped
+// `\n`/`\r`/`\t` sequences required by the JSON spec. JSON.parse rejects
+// raw control characters inside string literals, so walk the text and
+// escape them when they appear inside a string. Outside of strings (e.g.
+// whitespace between tokens) the text is left untouched, so this is a
+// no-op for already well-formed JSON.
+function sanitizeJsonControlChars(text) {
+  let result = "";
+  let inString = false;
+  let escaped = false;
+
+  for (const char of text) {
+    if (inString && escaped) {
+      result += char;
+      escaped = false;
+      continue;
+    }
+
+    if (inString && char === "\\") {
+      result += char;
+      escaped = true;
+      continue;
+    }
+
+    if (inString && char === '"') {
+      result += char;
+      inString = false;
+      continue;
+    }
+
+    // Any raw C0 control character (U+0000-U+001F) inside a string is
+    // illegal in JSON. Prefer the standard two-char escapes for the three
+    // common ones (newline/carriage-return/tab), and fall back to a
+    // generic `\u00XX` escape for the rest (e.g. U+0001, U+000B, U+001F).
+    if (inString && char.charCodeAt(0) < 0x20) {
+      if (char === "\n") {
+        result += "\\n";
+      } else if (char === "\r") {
+        result += "\\r";
+      } else if (char === "\t") {
+        result += "\\t";
+      } else {
+        const hex = char.charCodeAt(0).toString(16).padStart(2, "0");
+        result += `\\u00${hex}`;
+      }
+      continue;
+    }
+
+    if (inString) {
+      result += char;
+      continue;
+    }
+
+    if (char === '"') {
+      result += char;
+      inString = true;
+      continue;
+    }
+
+    result += char;
+  }
+
+  return result;
+}
+
 function extractJson(text) {
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
   const raw = fenced ? fenced[1] : text;
-  return JSON.parse(raw.trim());
+  return JSON.parse(sanitizeJsonControlChars(raw.trim()));
 }
 
 function isRetriable(err) {
