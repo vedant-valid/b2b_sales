@@ -1,5 +1,5 @@
 import { prisma } from "../lib/prisma.js";
-import { generateDraft as realGenerateDraft } from "../services/emailGen.js";
+import { generateDraft as realGenerateDraft, DEFAULT_SENDER_NAME } from "../services/emailGen.js";
 import { renderTemplate as realRenderTemplate } from "../services/templateEngine.js";
 import { getBoss } from "../lib/pgboss.js";
 import { logger } from "../lib/logger.js";
@@ -7,7 +7,7 @@ import { logger } from "../lib/logger.js";
 export const QUEUE = "generate-email";
 
 const DEFAULT_PROFILE = {
-  senderName: "Outreach Team",
+  senderName: DEFAULT_SENDER_NAME,
   senderCompany: "NST",
   valueProp: "NST students build production-grade systems and are job-ready"
 };
