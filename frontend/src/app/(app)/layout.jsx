@@ -4,18 +4,20 @@ import { authOptions } from "@/lib/auth";
 import LogoutButton from "@/components/LogoutButton";
 import AuthWatcher from "@/components/AuthWatcher";
 import Sidebar from "@/components/Sidebar";
+import ThemeToggle from "@/components/ThemeToggle";
 
 export default async function AppLayout({ children }) {
   const session = await getServerSession(authOptions);
   if (!session) redirect("/login");
   return (
     <div className="min-h-screen flex flex-col">
-      <header className="border-b px-6 py-3 flex justify-between items-center bg-white">
+      <header className="border-b px-6 py-3 flex justify-between items-center bg-card">
         <span className="font-bold text-lg tracking-tight">Outreach</span>
         <div className="flex items-center gap-4">
-          <span className="text-sm text-gray-500">
+          <span className="text-sm text-muted-foreground">
             {session.user.email} · {session.user.role}
           </span>
+          <ThemeToggle />
           <LogoutButton />
         </div>
       </header>
