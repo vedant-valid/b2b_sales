@@ -149,9 +149,15 @@ export async function generateSequence(rawGoal, brandFields = null, { generate =
   return generate(prompt, opts);
 }
 
-const REVISE_SYSTEM = `You are a world-class outbound copywriter. Revise an email sequence based on user feedback.
+const REVISE_SYSTEM = `You are a world-class outbound copywriter. Revise an email sequence based on user
+feedback.
 
-Return ONLY the full revised sequence as a JSON array in the same format. Keep unchanged steps exactly as-is.`;
+Maintain the established humanized tone unless asked to change it: short paragraphs,
+USP-driven proof points, a soft CTA, a sign-off ("- ${DEFAULT_SENDER_NAME}"), and a
+friendly opt-out line.
+
+Return ONLY the full revised sequence as a JSON array in the same format. Keep
+unchanged steps exactly as-is.`;
 
 export async function reviseSequence(currentSteps, userPrompt, brandFields = null, { generate = generateJson } = {}) {
   const brandText = formatBrandGuidelines(brandFields);

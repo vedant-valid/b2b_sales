@@ -67,4 +67,15 @@ describe("reviseSequence", () => {
     const [, calledOpts] = fakeGenerate.mock.calls[0];
     expect(calledOpts.systemInstruction).toContain("bold");
   });
+
+  test("prompt maintains established humanized tone with sign-off and opt-out", async () => {
+    fakeGenerate.mockResolvedValueOnce([
+      { stepNumber: 1, delayDays: 0, subject: "Sub", body: "Body" }
+    ]);
+    await reviseSequence(currentSteps, "make step 1 shorter", null, { generate: fakeGenerate });
+    const calledPrompt = fakeGenerate.mock.calls[0][0];
+    expect(calledPrompt).toContain("sign-off");
+    expect(calledPrompt).toContain("opt-out");
+    expect(calledPrompt).toContain(DEFAULT_SENDER_NAME);
+  });
 });
