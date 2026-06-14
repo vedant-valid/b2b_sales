@@ -32,6 +32,34 @@ export function mapSequenceBody(body) {
     .replaceAll("{{aiPersonalization}}", "");
 }
 
+function escapeHtml(text) {
+  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+const BULLET_LINE = /^[-*]\s+/;
+
+// Instantly's sequence editor stores body content as HTML: each paragraph is its
+// own <div>, with empty <div><br /></div> blocks giving the blank-line spacing
+// between paragraphs, and "- "/"* " lines become a <ul><li> list. Plain text with
+// no markup renders as one unstyled block.
+export function toInstantlyHtml(text) {
+  return text
+    .split(/\n\s*\n/)
+    .map(p => p.trim())
+    .filter(Boolean)
+    .map(toInstantlyBlock)
+    .join("<div><br /></div>");
+}
+
+function toInstantlyBlock(paragraph) {
+  const lines = paragraph.split("\n").map(l => l.trim()).filter(Boolean);
+  if (lines.length >= 2 && lines.every(l => BULLET_LINE.test(l))) {
+    const items = lines.map(l => `<li>${escapeHtml(l.replace(BULLET_LINE, ""))}</li>`).join("");
+    return `<ul>${items}</ul>`;
+  }
+  return `<div>${escapeHtml(paragraph).replace(/\n/g, "<br />")}</div>`;
+}
+
 function buildSequenceSteps(sequenceSteps, mode) {
   if (sequenceSteps?.length) {
     return [...sequenceSteps]
@@ -42,7 +70,7 @@ function buildSequenceSteps(sequenceSteps, mode) {
         delay_unit: i === 0 ? "minutes" : "days",
         variants: [{
           subject: step.subject,
-          body: i === 0 ? "{{personalization}}" : mapSequenceBody(step.body)
+          body: toInstantlyHtml(mapSequenceBody(step.body))
         }]
       }));
   }

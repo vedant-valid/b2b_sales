@@ -1,5 +1,5 @@
 import { jest } from "@jest/globals";
-import { createCampaign, pushLeads, sendSubsequence, mapSequenceBody, getLeadSendStatus, updateCampaignSequence } from "../../services/instantly.js";
+import { createCampaign, pushLeads, sendSubsequence, mapSequenceBody, toInstantlyHtml, getLeadSendStatus, updateCampaignSequence } from "../../services/instantly.js";
 import { env } from "../../config/env.js";
 
 function makeFetch(responses) {
@@ -88,7 +88,7 @@ describe("instantly service", () => {
       { status: 200, body: { id: "cmp_seq" } }
     ]);
     const sequenceSteps = [
-      { stepNumber: 1, subject: "Quick question for {{firstName}}", body: "Hi {{firstName}}, this is the AI-written intro copy that should be discarded in favor of the per-lead draft", delayDays: 0 },
+      { stepNumber: 1, subject: "Quick question for {{firstName}}", body: "Hi {{firstName}}, I saw {{company}} is growing fast — {{aiPersonalization}}", delayDays: 0 },
       { stepNumber: 2, subject: "Following up", body: "Hi {{firstName}} from {{company}} — {{aiPersonalization}}", delayDays: 3 }
     ];
     const out = await createCampaign("X", { sequenceSteps, fetch });
@@ -101,12 +101,12 @@ describe("instantly service", () => {
     expect(steps[0].delay).toBe(0);
     expect(steps[0].delay_unit).toBe("minutes");
     expect(steps[0].variants[0].subject).toBe("Quick question for {{firstName}}");
-    expect(steps[0].variants[0].body).toBe("{{personalization}}");
+    expect(steps[0].variants[0].body).toBe("<div>Hi {{firstName}}, I saw {{companyName}} is growing fast —</div>");
 
     expect(steps[1].delay).toBe(3);
     expect(steps[1].delay_unit).toBe("days");
     expect(steps[1].variants[0].subject).toBe("Following up");
-    expect(steps[1].variants[0].body).toBe("Hi {{firstName}} from {{companyName}} — ");
+    expect(steps[1].variants[0].body).toBe("<div>Hi {{firstName}} from {{companyName}} —</div>");
   });
 
   test("createCampaign falls back to hardcoded single step when sequenceSteps is empty", async () => {
@@ -131,6 +131,42 @@ describe("mapSequenceBody", () => {
 
   test("strips aiPersonalization", () => {
     expect(mapSequenceBody("Hello — {{aiPersonalization}} — bye")).toBe("Hello —  — bye");
+  });
+});
+
+describe("toInstantlyHtml", () => {
+  test("wraps a single paragraph in a div", () => {
+    expect(toInstantlyHtml("Hi {{firstName}},")).toBe("<div>Hi {{firstName}},</div>");
+  });
+
+  test("joins blank-line-separated paragraphs with spacer divs", () => {
+    const text = "Hi {{firstName}},\n\nFirst paragraph.\n\nSecond paragraph.";
+    expect(toInstantlyHtml(text)).toBe(
+      "<div>Hi {{firstName}},</div><div><br /></div><div>First paragraph.</div><div><br /></div><div>Second paragraph.</div>"
+    );
+  });
+
+  test("converts single newlines within a paragraph to <br />", () => {
+    expect(toInstantlyHtml("Line one\nLine two")).toBe("<div>Line one<br />Line two</div>");
+  });
+
+  test("escapes HTML special characters", () => {
+    expect(toInstantlyHtml("A & B <tag>")).toBe("<div>A &amp; B &lt;tag&gt;</div>");
+  });
+
+  test("trims surrounding whitespace and drops empty paragraphs", () => {
+    expect(toInstantlyHtml("\n\n  Hi there  \n\n\n\n")).toBe("<div>Hi there</div>");
+  });
+
+  test("converts a paragraph of '- ' lines into a bullet list", () => {
+    const text = "Here's a glimpse of the talent:\n\n- Item one\n- Item two\n- Item three";
+    expect(toInstantlyHtml(text)).toBe(
+      "<div>Here's a glimpse of the talent:</div><div><br /></div><ul><li>Item one</li><li>Item two</li><li>Item three</li></ul>"
+    );
+  });
+
+  test("does not treat a single '- ' line as a list", () => {
+    expect(toInstantlyHtml("- just one line")).toBe("<div>- just one line</div>");
   });
 });
 
@@ -190,7 +226,7 @@ describe("updateCampaignSequence", () => {
       { status: 200, body: { id: "cmp_123" } }
     ]);
     const sequenceSteps = [
-      { stepNumber: 1, subject: "New subject", body: "irrelevant for step 1", delayDays: 0 },
+      { stepNumber: 1, subject: "New subject", body: "Hi {{firstName}}, great to connect with {{company}} — {{aiPersonalization}}", delayDays: 0 },
       { stepNumber: 2, subject: "Follow up", body: "Hi {{firstName}} from {{company}} — {{aiPersonalization}}", delayDays: 5 }
     ];
     await updateCampaignSequence("cmp_123", sequenceSteps, { fetch });
@@ -206,12 +242,12 @@ describe("updateCampaignSequence", () => {
     expect(steps[0].delay).toBe(0);
     expect(steps[0].delay_unit).toBe("minutes");
     expect(steps[0].variants[0].subject).toBe("New subject");
-    expect(steps[0].variants[0].body).toBe("{{personalization}}");
+    expect(steps[0].variants[0].body).toBe("<div>Hi {{firstName}}, great to connect with {{companyName}} —</div>");
 
     expect(steps[1].delay).toBe(5);
     expect(steps[1].delay_unit).toBe("days");
     expect(steps[1].variants[0].subject).toBe("Follow up");
-    expect(steps[1].variants[0].body).toBe("Hi {{firstName}} from {{companyName}} — ");
+    expect(steps[1].variants[0].body).toBe("<div>Hi {{firstName}} from {{companyName}} —</div>");
   });
 
   test("throws on non-2xx", async () => {

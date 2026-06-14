@@ -14,7 +14,10 @@ Structure (each its own short paragraph, 1-3 sentences):
    news — use role/industry context.
 3. USPs: 1-3 short paragraphs of concrete proof points (named companies, numbers,
    outcomes) drawn from the sender's value prop and any brand-guideline proof points.
-   One proof point per paragraph.
+   One proof point per paragraph. If you have 2+ short, parallel proof points (e.g.
+   named people/projects each with a result), use a lead-in sentence as its own
+   paragraph followed by a separate paragraph listing each item on its own line
+   starting with "- " (renders as a bullet list).
 4. Urgency (optional, max 1 line): mention limited availability/exclusivity ONLY if
    brand guidelines describe a real cohort/pilot/capacity limit. Never invent scarcity.
 5. Soft CTA: low-pressure ask ("happy to share more if useful", "open to a quick chat
@@ -28,6 +31,8 @@ Rules:
 - Subject under 60 chars
 - Body under 180 words
 - Plain text, no markdown
+- Separate each paragraph in "body" with a blank line (\n\n) — never run them
+  together into one block of text
 - No em-dashes
 - Conversational tone — contractions are fine; avoid corporate jargon
   (e.g. "synergy", "leverage", "circle back")
@@ -72,7 +77,10 @@ Structure (each its own short paragraph, 1-3 sentences):
    framed with empathy.
 3. USPs: 1-3 short paragraphs of concrete proof points (named companies, numbers,
    outcomes) tied to the value proposition from the campaign goal and any
-   brand-guideline proof points. One proof point per paragraph.
+   brand-guideline proof points. One proof point per paragraph. If you have 2+
+   short, parallel proof points (e.g. named people/projects each with a result),
+   use a lead-in sentence as its own paragraph followed by a separate paragraph
+   listing each item on its own line starting with "- " (renders as a bullet list).
 4. Urgency (optional, max 1 line): ONLY if brand guidelines describe a real
    cohort/pilot/capacity limit. Never invent scarcity.
 5. Soft CTA: low-pressure ask — never demand a meeting.
@@ -84,6 +92,8 @@ Rules:
 - Subject under 60 chars
 - Body under 180 words
 - Plain text, no markdown
+- Separate each paragraph in "body" with a blank line (\n\n) — never run them
+  together into one block of text
 - No em-dashes
 - Conversational tone — contractions are fine; avoid corporate jargon
 - Use only the placeholder tokens listed above for lead-specific values — no
@@ -118,6 +128,10 @@ Step 1 (warm intro) — full structure, each its own short paragraph:
    framed with empathy.
 3. USPs: 1-3 short paragraphs of concrete proof points (named companies, numbers,
    outcomes) tied to the value proposition and any brand-guideline proof points.
+   If you have 2+ short, parallel proof points (e.g. named people/projects each
+   with a result), use a lead-in sentence as its own paragraph followed by a
+   separate paragraph listing each item on its own line starting with "- "
+   (renders as a bullet list).
 4. Urgency (optional, max 1 line): ONLY if brand guidelines describe a real
    cohort/pilot/capacity limit. Never invent scarcity.
 5. Soft CTA: low-pressure ask — never demand a meeting.
@@ -138,6 +152,8 @@ Rules:
 - Subject ≤ 60 chars
 - Step 1 body ≤ 180 words; steps 2+ body ≤ 100 words
 - Plain text only — no markdown, no em-dashes
+- Separate each paragraph in "body" with a blank line (\n\n) — never run them
+  together into one block of text
 - Conversational tone — contractions are fine; avoid corporate jargon
 - Placeholders: {{firstName}}, {{company}}, {{title}}, {{aiPersonalization}}
 - Final step = brief close`;
@@ -154,7 +170,10 @@ feedback.
 
 Maintain the established humanized tone unless asked to change it: short paragraphs,
 USP-driven proof points, a soft CTA, a sign-off ("- ${DEFAULT_SENDER_NAME}"), and a
-friendly opt-out line.
+friendly opt-out line. Separate each paragraph in "body" with a blank line (\n\n) —
+never run them together into one block of text. If listing 2+ short, parallel proof
+points, use a lead-in sentence as its own paragraph followed by a separate paragraph
+listing each item on its own line starting with "- " (renders as a bullet list).
 
 Return ONLY the full revised sequence as a JSON array in the same format. Keep
 unchanged steps exactly as-is.`;
