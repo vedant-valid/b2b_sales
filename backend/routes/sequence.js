@@ -7,6 +7,7 @@ import {
   generateSequence as realGenerateSequence,
   reviseSequence as realReviseSequence,
 } from "../services/emailGen.js";
+import { updateCampaignSequence as realUpdateCampaignSequence } from "../services/instantly.js";
 
 const router = Router();
 router.use(requireAuth);
@@ -15,6 +16,9 @@ let generateSequenceFn = realGenerateSequence;
 let reviseSequenceFn = realReviseSequence;
 export function __setGenerateSequenceImpl(fn) { generateSequenceFn = fn; }
 export function __setReviseSequenceImpl(fn) { reviseSequenceFn = fn; }
+
+let instantly = { updateCampaignSequence: realUpdateCampaignSequence };
+export function __setInstantlyImpl(impl) { instantly = impl; }
 
 const stepSchema = z.object({
   stepNumber: z.number().int().positive(),
@@ -113,8 +117,18 @@ router.post("/:id/sequence/approve", requireRole("ADMIN", "MANAGER"), async (req
   try {
     const campaign = await getCampaignOrFail(req.params.id, res);
     if (!campaign) return;
-    const count = await prisma.sequenceStep.count({ where: { campaignId: campaign.id } });
-    if (count === 0) return res.status(400).json({ error: "no_sequence", message: "Generate a sequence before approving." });
+    const steps = await prisma.sequenceStep.findMany({
+      where: { campaignId: campaign.id },
+      orderBy: { stepNumber: "asc" },
+    });
+    if (steps.length === 0) return res.status(400).json({ error: "no_sequence", message: "Generate a sequence before approving." });
+
+    // If the campaign is already dispatched, push the approved sequence to the live
+    // Instantly campaign too — otherwise edits made after dispatch never reach Instantly.
+    if (campaign.instantlyCampaignId) {
+      await instantly.updateCampaignSequence(campaign.instantlyCampaignId, steps);
+    }
+
     await prisma.campaign.update({ where: { id: campaign.id }, data: { sequenceApproved: true } });
     res.json({ sequenceApproved: true });
   } catch (e) { next(e); }

@@ -1,5 +1,5 @@
 import { jest } from "@jest/globals";
-import { createCampaign, pushLeads, sendSubsequence, mapSequenceBody, getLeadSendStatus } from "../../services/instantly.js";
+import { createCampaign, pushLeads, sendSubsequence, mapSequenceBody, getLeadSendStatus, updateCampaignSequence } from "../../services/instantly.js";
 import { env } from "../../config/env.js";
 
 function makeFetch(responses) {
@@ -181,5 +181,42 @@ describe("getLeadSendStatus", () => {
       env.DEV_MODE = originalDevMode;
       env.DEV_EMAIL = originalDevEmail;
     }
+  });
+});
+
+describe("updateCampaignSequence", () => {
+  test("PATCHes the campaign with mapped sequence steps", async () => {
+    const fetch = makeFetch([
+      { status: 200, body: { id: "cmp_123" } }
+    ]);
+    const sequenceSteps = [
+      { stepNumber: 1, subject: "New subject", body: "irrelevant for step 1", delayDays: 0 },
+      { stepNumber: 2, subject: "Follow up", body: "Hi {{firstName}} from {{company}} — {{aiPersonalization}}", delayDays: 5 }
+    ];
+    await updateCampaignSequence("cmp_123", sequenceSteps, { fetch });
+
+    expect(fetch.calls).toHaveLength(1);
+    expect(fetch.calls[0].url).toMatch(/\/campaigns\/cmp_123$/);
+    expect(fetch.calls[0].init.method).toBe("PATCH");
+
+    const body = JSON.parse(fetch.calls[0].init.body);
+    const steps = body.sequences[0].steps;
+    expect(steps).toHaveLength(2);
+
+    expect(steps[0].delay).toBe(0);
+    expect(steps[0].delay_unit).toBe("minutes");
+    expect(steps[0].variants[0].subject).toBe("New subject");
+    expect(steps[0].variants[0].body).toBe("{{personalization}}");
+
+    expect(steps[1].delay).toBe(5);
+    expect(steps[1].delay_unit).toBe("days");
+    expect(steps[1].variants[0].subject).toBe("Follow up");
+    expect(steps[1].variants[0].body).toBe("Hi {{firstName}} from {{companyName}} — ");
+  });
+
+  test("throws on non-2xx", async () => {
+    const fetch = makeFetch([{ status: 400, body: { error: "bad" } }]);
+    const sequenceSteps = [{ stepNumber: 1, subject: "X", body: "Y", delayDays: 0 }];
+    await expect(updateCampaignSequence("cmp_123", sequenceSteps, { fetch })).rejects.toThrow(/instantly/);
   });
 });

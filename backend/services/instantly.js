@@ -121,6 +121,12 @@ export async function lookupInstantlyLeadId(instantlyCampaignId, email, opts = {
   return lead.id;
 }
 
+export async function updateCampaignSequence(instantlyCampaignId, sequenceSteps, opts = {}) {
+  await req(`/api/v2/campaigns/${instantlyCampaignId}`, "PATCH", {
+    sequences: [{ steps: buildSequenceSteps(sequenceSteps) }]
+  }, opts);
+}
+
 export async function getLeadSendStatus(instantlyCampaignId, email, opts = {}) {
   const devMode = env.DEV_MODE === "true";
   const lookupEmail = devMode ? (env.DEV_EMAIL || "madnevedant15@gmail.com") : email;
