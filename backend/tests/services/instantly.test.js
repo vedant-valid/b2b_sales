@@ -1,5 +1,6 @@
 import { jest } from "@jest/globals";
-import { createCampaign, pushLeads, sendSubsequence, mapSequenceBody } from "../../services/instantly.js";
+import { createCampaign, pushLeads, sendSubsequence, mapSequenceBody, getLeadSendStatus } from "../../services/instantly.js";
+import { env } from "../../config/env.js";
 
 function makeFetch(responses) {
   const calls = [];
@@ -130,5 +131,55 @@ describe("mapSequenceBody", () => {
 
   test("strips aiPersonalization", () => {
     expect(mapSequenceBody("Hello — {{aiPersonalization}} — bye")).toBe("Hello —  — bye");
+  });
+});
+
+describe("getLeadSendStatus", () => {
+  test("returns sent:true when the matched lead has timestamp_last_contact", async () => {
+    const fetch = makeFetch([
+      { status: 200, body: { items: [{ id: "lead_456", email: "lead@x.com", timestamp_last_contact: "2026-01-08T12:09:16.898Z" }] } }
+    ]);
+    const out = await getLeadSendStatus("cmp_123", "lead@x.com", { fetch });
+    expect(out).toEqual({ sent: true });
+
+    const body = JSON.parse(fetch.calls[0].init.body);
+    expect(body).toEqual({ search: "lead@x.com", campaign: "cmp_123", limit: 1 });
+    expect(fetch.calls[0].url).toMatch(/\/leads\/list$/);
+  });
+
+  test("returns sent:false when timestamp_last_contact is absent", async () => {
+    const fetch = makeFetch([
+      { status: 200, body: { items: [{ id: "lead_456", email: "lead@x.com" }] } }
+    ]);
+    const out = await getLeadSendStatus("cmp_123", "lead@x.com", { fetch });
+    expect(out).toEqual({ sent: false });
+  });
+
+  test("returns sent:false when no matching lead is found", async () => {
+    const fetch = makeFetch([
+      { status: 200, body: { items: [] } }
+    ]);
+    const out = await getLeadSendStatus("cmp_123", "missing@x.com", { fetch });
+    expect(out).toEqual({ sent: false });
+  });
+
+  test("in DEV_MODE, searches by DEV_EMAIL instead of the lead's real email", async () => {
+    const originalDevMode = env.DEV_MODE;
+    const originalDevEmail = env.DEV_EMAIL;
+    env.DEV_MODE = "true";
+    env.DEV_EMAIL = "dev@x.com";
+    try {
+      const fetch = makeFetch([
+        { status: 200, body: { items: [{ id: "lead_456", email: "dev@x.com", timestamp_last_contact: "2026-01-08T12:09:16.898Z" }] } }
+      ]);
+      const out = await getLeadSendStatus("cmp_123", "real-lead@x.com", { fetch });
+      expect(out).toEqual({ sent: true });
+
+      const body = JSON.parse(fetch.calls[0].init.body);
+      expect(body.search).toBe("dev@x.com");
+    } finally {
+      env.DEV_MODE = originalDevMode;
+      env.DEV_EMAIL = originalDevEmail;
+    }
   });
 });

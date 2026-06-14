@@ -121,6 +121,14 @@ export async function lookupInstantlyLeadId(instantlyCampaignId, email, opts = {
   return lead.id;
 }
 
+export async function getLeadSendStatus(instantlyCampaignId, email, opts = {}) {
+  const devMode = env.DEV_MODE === "true";
+  const lookupEmail = devMode ? (env.DEV_EMAIL || "madnevedant15@gmail.com") : email;
+  const data = await req("/api/v2/leads/list", "POST", { search: lookupEmail, campaign: instantlyCampaignId, limit: 1 }, opts);
+  const lead = data?.items?.[0];
+  return { sent: !!lead?.timestamp_last_contact };
+}
+
 export async function sendSubsequence(instantlyCampaignId, email, body, opts = {}) {
   const subsequenceId = await createFollowUpSubsequence(instantlyCampaignId, "Re:", body, opts);
   const leadId = await lookupInstantlyLeadId(instantlyCampaignId, email, opts);
