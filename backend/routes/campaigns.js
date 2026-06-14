@@ -7,7 +7,7 @@ import { extractFilters as realExtractFilters } from "../services/prompt.js";
 import { enrichLeads as realEnrichLeads } from "../services/lusha.js";
 import { generateTemplateEmail as realGenerateTemplateEmail } from "../services/emailGen.js";
 import { generateText } from "../services/gemini.js";
-import { getCampaignAnalytics } from "../services/instantly.js";
+import { getCampaignAnalytics, getLeadSendStatus as realGetLeadSendStatus } from "../services/instantly.js";
 import { getBoss } from "../lib/pgboss.js";
 import { env } from "../config/env.js";
 import { logger } from "../lib/logger.js";
@@ -31,6 +31,9 @@ export function __setEnrichLeadsImpl(fn) { enrich = fn; }
 
 let generateTemplateEmailImpl = realGenerateTemplateEmail;
 export function __setGenerateTemplateEmailImpl(fn) { generateTemplateEmailImpl = fn; }
+
+let instantly = { getLeadSendStatus: realGetLeadSendStatus };
+export function __setInstantlyImpl(impl) { instantly = impl; }
 
 const router = Router();
 router.use(requireAuth);
@@ -326,31 +329,36 @@ router.get("/:id/analytics", requireRole("ADMIN", "MANAGER", "VIEWER"), async (r
   } catch (e) { next(e); }
 });
 
-// Sync lead statuses: marks NEW leads as CONTACTED if their email was already sent (webhook missed)
+// Sync lead statuses: for NEW leads we've already pushed to Instantly (Email.status === "SENT"),
+// confirm with Instantly that a send step actually executed before marking them CONTACTED.
+// The email_sent webhook is the primary path; this is a manual fallback for missed webhooks.
 router.post("/:id/sync-lead-status", requireRole("ADMIN", "MANAGER"), async (req, res, next) => {
   try {
     const campaign = await prisma.campaign.findUnique({ where: { id: req.params.id } });
     if (!campaign) return res.status(404).json({ error: "not_found" });
+    if (!campaign.instantlyCampaignId) return res.json({ updated: 0 });
 
     // Find leads that are still NEW but have a SENT email
     const staleLeads = await prisma.lead.findMany({
       where: {
         campaignId: campaign.id,
         status: "NEW",
+        email: { not: null },
         emails: { some: { status: "SENT" } }
       },
-      select: { id: true }
+      select: { id: true, email: true }
     });
 
-    if (staleLeads.length === 0) return res.json({ updated: 0 });
+    let updated = 0;
+    for (const lead of staleLeads) {
+      const { sent } = await instantly.getLeadSendStatus(campaign.instantlyCampaignId, lead.email);
+      if (sent) {
+        await prisma.lead.update({ where: { id: lead.id }, data: { status: "CONTACTED" } });
+        updated++;
+      }
+    }
 
-    const ids = staleLeads.map(l => l.id);
-    await prisma.lead.updateMany({
-      where: { id: { in: ids } },
-      data: { status: "CONTACTED" }
-    });
-
-    res.json({ updated: ids.length });
+    res.json({ updated });
   } catch (e) { next(e); }
 });
 

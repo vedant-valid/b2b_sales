@@ -1,7 +1,7 @@
 import request from "supertest";
 import { jest } from "@jest/globals";
 import { createApp } from "../../app.js";
-import { __setExtractFilters, __setEnrichLeadsImpl, __setGenerateTemplateEmailImpl } from "../../routes/campaigns.js";
+import { __setExtractFilters, __setEnrichLeadsImpl, __setGenerateTemplateEmailImpl, __setInstantlyImpl } from "../../routes/campaigns.js";
 import { prisma } from "../../lib/prisma.js";
 import { createUser, authHeader } from "../helpers/factory.js";
 import { resetDb } from "../setup.js";
@@ -17,6 +17,7 @@ beforeEach(async () => {
     needsClarification: false
   }));
   __setGenerateTemplateEmailImpl(() => { throw new Error("generateTemplateEmailImpl not mocked in this test"); });
+  __setInstantlyImpl({ getLeadSendStatus: jest.fn().mockResolvedValue({ sent: false }) });
 });
 
 afterAll(async () => { await stopBoss(); });
@@ -795,5 +796,105 @@ describe("unlock-leads", () => {
     const failLead = await prisma.lead.findUnique({ where: { id: lead2.id } });
     expect(failLead.isEnriched).toBe(false);
     expect(failLead.enrichmentStatus).toBe("PREVIEW");
+  });
+});
+
+describe("POST /:id/sync-lead-status", () => {
+  test("marks a NEW lead CONTACTED when Instantly confirms the send", async () => {
+    const { user, token } = await createUser({ role: "MANAGER", email: `sync1${Date.now()}@x.com` });
+    const campaign = await prisma.campaign.create({
+      data: { name: "G", rawGoal: "goal here", extractedFilters: {}, status: "RUNNING", instantlyCampaignId: "cmp_sync", createdById: user.id }
+    });
+    const lead = await prisma.lead.create({
+      data: { firstName: "A", lastName: "B", email: "a@x.com", company: "X", campaignId: campaign.id, status: "NEW" }
+    });
+    await prisma.email.create({
+      data: { leadId: lead.id, subject: "Hi", body: "Body", status: "SENT", sentAt: new Date() }
+    });
+
+    __setInstantlyImpl({ getLeadSendStatus: jest.fn().mockResolvedValue({ sent: true }) });
+
+    const res = await request(app)
+      .post(`/api/campaigns/${campaign.id}/sync-lead-status`)
+      .set(authHeader(token));
+
+    expect(res.status).toBe(200);
+    expect(res.body.updated).toBe(1);
+    const updatedLead = await prisma.lead.findUnique({ where: { id: lead.id } });
+    expect(updatedLead.status).toBe("CONTACTED");
+  });
+
+  test("leaves a NEW lead unchanged when Instantly has not sent yet", async () => {
+    const { user, token } = await createUser({ role: "MANAGER", email: `sync2${Date.now()}@x.com` });
+    const campaign = await prisma.campaign.create({
+      data: { name: "G", rawGoal: "goal here", extractedFilters: {}, status: "RUNNING", instantlyCampaignId: "cmp_sync", createdById: user.id }
+    });
+    const lead = await prisma.lead.create({
+      data: { firstName: "A", lastName: "B", email: "a@x.com", company: "X", campaignId: campaign.id, status: "NEW" }
+    });
+    await prisma.email.create({
+      data: { leadId: lead.id, subject: "Hi", body: "Body", status: "SENT", sentAt: new Date() }
+    });
+
+    __setInstantlyImpl({ getLeadSendStatus: jest.fn().mockResolvedValue({ sent: false }) });
+
+    const res = await request(app)
+      .post(`/api/campaigns/${campaign.id}/sync-lead-status`)
+      .set(authHeader(token));
+
+    expect(res.status).toBe(200);
+    expect(res.body.updated).toBe(0);
+    const updatedLead = await prisma.lead.findUnique({ where: { id: lead.id } });
+    expect(updatedLead.status).toBe("NEW");
+  });
+
+  test("returns updated:0 without calling Instantly when campaign has no instantlyCampaignId", async () => {
+    const { user, token } = await createUser({ role: "MANAGER", email: `sync3${Date.now()}@x.com` });
+    const campaign = await prisma.campaign.create({
+      data: { name: "G", rawGoal: "goal here", extractedFilters: {}, status: "DRAFT", createdById: user.id }
+    });
+    const lead = await prisma.lead.create({
+      data: { firstName: "A", lastName: "B", email: "a@x.com", company: "X", campaignId: campaign.id, status: "NEW" }
+    });
+    await prisma.email.create({
+      data: { leadId: lead.id, subject: "Hi", body: "Body", status: "SENT", sentAt: new Date() }
+    });
+
+    const getLeadSendStatus = jest.fn();
+    __setInstantlyImpl({ getLeadSendStatus });
+
+    const res = await request(app)
+      .post(`/api/campaigns/${campaign.id}/sync-lead-status`)
+      .set(authHeader(token));
+
+    expect(res.status).toBe(200);
+    expect(res.body.updated).toBe(0);
+    expect(getLeadSendStatus).not.toHaveBeenCalled();
+  });
+
+  test("ignores leads that are not NEW, without calling Instantly for them", async () => {
+    const { user, token } = await createUser({ role: "MANAGER", email: `sync4${Date.now()}@x.com` });
+    const campaign = await prisma.campaign.create({
+      data: { name: "G", rawGoal: "goal here", extractedFilters: {}, status: "RUNNING", instantlyCampaignId: "cmp_sync", createdById: user.id }
+    });
+    const lead = await prisma.lead.create({
+      data: { firstName: "A", lastName: "B", email: "a@x.com", company: "X", campaignId: campaign.id, status: "CONTACTED" }
+    });
+    await prisma.email.create({
+      data: { leadId: lead.id, subject: "Hi", body: "Body", status: "SENT", sentAt: new Date() }
+    });
+
+    const getLeadSendStatus = jest.fn();
+    __setInstantlyImpl({ getLeadSendStatus });
+
+    const res = await request(app)
+      .post(`/api/campaigns/${campaign.id}/sync-lead-status`)
+      .set(authHeader(token));
+
+    expect(res.status).toBe(200);
+    expect(res.body.updated).toBe(0);
+    expect(getLeadSendStatus).not.toHaveBeenCalled();
+    const unchangedLead = await prisma.lead.findUnique({ where: { id: lead.id } });
+    expect(unchangedLead.status).toBe("CONTACTED");
   });
 });
